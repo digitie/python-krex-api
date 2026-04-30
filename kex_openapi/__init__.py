@@ -27,7 +27,17 @@ from .exceptions import (
     KexServiceUnavailableError,
     KexTimeoutError,
 )
-from .models import FoodPrice, Incident, Page, RestArea, Route, TollFee, Tollgate, TrafficByIc, TrafficFlow
+from .models import (
+    FoodPrice,
+    Incident,
+    Page,
+    RestArea,
+    Route,
+    TollFee,
+    Tollgate,
+    TrafficByIc,
+    TrafficFlow,
+)
 
 __all__ = [
     "CarType",

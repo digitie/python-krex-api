@@ -106,6 +106,11 @@ Update documentation in the same change:
   `_convert.py` or model parser helpers.
 - Do not expose a new dataclass until at least one realistic fixture or fake
   response locks the expected field names.
+- Do not assume `data.ex.co.kr` always uses `list`; real responses can use an
+  endpoint-named top-level array such as `trafficIc`.
+- Do not use `payload.get("count") or ...` for counts. Real empty responses use
+  `count=0`, and that must stay `0`.
+- Do not let API keys appear in dataclass repr output.
 
 ## Release Checklist
 
@@ -119,6 +124,15 @@ python -m mypy kex_openapi
 ```
 
 `ruff check .` is also expected when the environment has Ruff installed.
+
+Live `data.ex.co.kr` tests:
+
+```powershell
+$env:KEX_LIVE="1"
+python -m pytest -m live -vv
+```
+
+Live tests may read `KEX_EX_API_KEY` from local `.env`, which is ignored by Git.
 
 ## Verification
 

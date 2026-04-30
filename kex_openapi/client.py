@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
-from ._convert import strip_or_none, to_bool_yn, to_date_or_none, to_float_or_none, to_int_or_none
+from ._convert import (
+    strip_or_none,
+    to_bool_yn,
+    to_date_or_none,
+    to_float_or_none,
+    to_int_or_none,
+)
 from ._http import KexHttp, NormalizedPayload
 from .codes import (
     ROUTE_NAMES,
@@ -22,7 +29,17 @@ from .codes import (
     coerce_code,
 )
 from .exceptions import KexInvalidParameterError, KexNotFoundError, KexParseError
-from .models import FoodPrice, Incident, Page, RestArea, Route, TollFee, Tollgate, TrafficByIc, TrafficFlow
+from .models import (
+    FoodPrice,
+    Incident,
+    Page,
+    RestArea,
+    Route,
+    TollFee,
+    Tollgate,
+    TrafficByIc,
+    TrafficFlow,
+)
 
 T = TypeVar("T")
 E = TypeVar("E", bound=StrEnum)
@@ -66,7 +83,7 @@ class KexClient:
         self.reference = ReferenceNamespace(self)
 
     @classmethod
-    def from_env(cls, **kwargs: Any) -> "KexClient":
+    def from_env(cls, **kwargs: Any) -> KexClient:
         return cls(**kwargs)
 
     def _page_ex(
@@ -322,7 +339,10 @@ class ReferenceNamespace:
     _client: KexClient
 
     def routes(self) -> tuple[Route, ...]:
-        return tuple(Route(route_no=code, route_name=name, short_name=name.replace("고속도로", "선")) for code, name in ROUTE_NAMES.items())
+        return tuple(
+            Route(route_no=code, route_name=name, short_name=name.replace("고속도로", "선"))
+            for code, name in ROUTE_NAMES.items()
+        )
 
     def common_codes(self) -> dict[str, dict[str, str]]:
         return {
@@ -355,14 +375,14 @@ def _parse_page(payload: NormalizedPayload, parser: Callable[[dict[str, Any]], T
 
 def _traffic_by_ic(row: dict[str, Any]) -> TrafficByIc:
     return TrafficByIc(
-        collected_date=to_date_or_none(_get(row, "stdDate", "collectedDate")),
-        collected_time=strip_or_none(_get(row, "stdTime", "collectedTime")),
-        unit_code=str(_required(row, "unitCode")),
+        collected_date=to_date_or_none(_get(row, "stdDate", "collectedDate", "sumDate")),
+        collected_time=strip_or_none(_get(row, "stdTime", "collectedTime", "sumTm")),
+        unit_code=str(_required(row, "unitCode")).strip(),
         unit_name=strip_or_none(_get(row, "unitName")),
-        in_out=_enum_or_none(IOType, _get(row, "inOutType")),
+        in_out=_enum_or_none(IOType, _get(row, "inOutType", "inoutType")),
         tcs_type=_enum_or_none(TCSType, _get(row, "tcsType")),
         car_type=_enum_or_none(CarType, _get(row, "carType")),
-        traffic_volume=to_int_or_none(_get(row, "trafficVol", "trafficVolume")),
+        traffic_volume=to_int_or_none(_get(row, "trafficVol", "trafficVolume", "trafficAmout")),
         raw=row,
     )
 
@@ -376,7 +396,10 @@ def _traffic_flow(row: dict[str, Any]) -> TrafficFlow:
         direction=_enum_or_none(Direction, _get(row, "dirType", "directionCode")),
         speed=to_float_or_none(_get(row, "speed", "avgSpeed")),
         free_flow_speed=to_float_or_none(_get(row, "tmFreeFlow", "freeFlowSpeed")),
-        congestion_level=_enum_or_none(CongestionLevel, _get(row, "congestionLevel", "conzoneGrade")),
+        congestion_level=_enum_or_none(
+            CongestionLevel,
+            _get(row, "congestionLevel", "conzoneGrade"),
+        ),
         updated_at=strip_or_none(_get(row, "updTime", "updateTime", "updatedAt")),
         raw=row,
     )

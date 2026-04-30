@@ -33,7 +33,7 @@ class CarType(StrEnum):
         return _CAR_TYPE_LABELS[self.value]
 
     @classmethod
-    def from_label(cls, label: str) -> "CarType":
+    def from_label(cls, label: str) -> CarType:
         return _from_label(cls, _CAR_TYPE_LABELS, label)
 
 

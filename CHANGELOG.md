@@ -36,3 +36,22 @@ Initial package scaffold and first implementation pass.
 - `python -m mypy kex_openapi`
 
 `ruff` was not available in the initial local environment.
+
+## Unreleased
+
+### Added
+
+- Live `data.ex.co.kr` tests gated by `KEX_LIVE=1` and local `KEX_EX_API_KEY`.
+
+### Fixed
+
+- `KexHttp` now creates a real requests session when `session=None` is passed
+  explicitly through `KexClient`.
+- API keys are hidden from `KexHttp` repr output.
+- `data.ex.co.kr` default base URL now uses HTTPS.
+- `data.ex.co.kr` responses with endpoint-named top-level arrays, such as
+  `trafficIc`, are normalized.
+- `trafficIc` parsing now handles real field variants: `sumDate`, `sumTm`,
+  `inoutType`, and `trafficAmout`.
+- Empty successful `data.ex.co.kr` responses preserve `count=0` as
+  `Page.total_count == 0`.

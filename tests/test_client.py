@@ -69,10 +69,12 @@ def test_traffic_by_ic_builds_query_and_parses_types() -> None:
                     "stdTime": "1400",
                     "unitCode": "101",
                     "unitName": "서울",
-                    "inOutType": "0",
+                    "inoutType": "0",
                     "tcsType": "2",
                     "carType": "1",
-                    "trafficVol": "1,234",
+                    "trafficAmout": "1,234",
+                    "sumTm": "1400",
+                    "sumDate": "20260430",
                 }
             ]
         )

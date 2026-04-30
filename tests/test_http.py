@@ -46,19 +46,35 @@ class FakeSession:
 
 def test_get_ex_adds_key_and_normalizes_list() -> None:
     session = FakeSession(
-        FakeResponse({"code": "SUCCESS", "pageNo": "2", "numOfRows": "1", "count": "9", "list": {"a": "1"}})
+        FakeResponse(
+            {
+                "code": "SUCCESS",
+                "pageNo": "2",
+                "numOfRows": "1",
+                "count": "9",
+                "list": {"a": "1"},
+            }
+        )
     )
     http = KexHttp(ex_api_key="secret-key", retry_backoff=0, session=session)
 
     payload = http.get_ex("/openapi/test", {"pageNo": 2})
 
-    assert session.calls[0]["url"] == "http://data.ex.co.kr/openapi/test"
+    assert session.calls[0]["url"] == "https://data.ex.co.kr/openapi/test"
     assert session.calls[0]["params"]["key"] == "secret-key"
     assert session.calls[0]["params"]["type"] == "json"
     assert payload.items == [{"a": "1"}]
     assert payload.page_no == 2
     assert payload.num_of_rows == 1
     assert payload.total_count == 9
+
+
+def test_none_session_uses_real_session_factory_and_repr_hides_keys() -> None:
+    http = KexHttp(ex_api_key="secret-key", go_api_key="go-key", session=None)
+
+    assert http.session is not None
+    assert "secret-key" not in repr(http)
+    assert "go-key" not in repr(http)
 
 
 def test_get_go_standard_uses_type_not_underscore_type() -> None:
@@ -83,6 +99,38 @@ def test_get_go_standard_uses_type_not_underscore_type() -> None:
     assert payload.total_count == 1
 
 
+def test_get_ex_accepts_endpoint_named_top_level_list() -> None:
+    session = FakeSession(
+        FakeResponse(
+            {
+                "code": "SUCCESS",
+                "message": "인증키가 유효합니다.",
+                "count": 1,
+                "trafficIc": [{"unitCode": "101 "}],
+            }
+        )
+    )
+    http = KexHttp(ex_api_key="secret-key", retry_backoff=0, session=session)
+
+    payload = http.get_ex("/openapi/trafficapi/trafficIc")
+
+    assert payload.items == [{"unitCode": "101 "}]
+    assert payload.total_count == 1
+
+
+def test_get_ex_preserves_zero_count() -> None:
+    http = KexHttp(
+        ex_api_key="secret-key",
+        retry_backoff=0,
+        session=FakeSession(FakeResponse({"code": "SUCCESS", "count": 0, "list": []})),
+    )
+
+    payload = http.get_ex("/openapi/trafficapi/trafficRoute")
+
+    assert payload.items == []
+    assert payload.total_count == 0
+
+
 @pytest.mark.parametrize(
     ("code", "exc_type"),
     [
@@ -94,7 +142,11 @@ def test_get_go_standard_uses_type_not_underscore_type() -> None:
     ],
 )
 def test_data_ex_error_codes_are_typed(code: str, exc_type: type[Exception]) -> None:
-    http = KexHttp(ex_api_key="key", retry_backoff=0, session=FakeSession(FakeResponse({"code": code})))
+    http = KexHttp(
+        ex_api_key="key",
+        retry_backoff=0,
+        session=FakeSession(FakeResponse({"code": code})),
+    )
 
     with pytest.raises(exc_type):
         http.get_ex("/openapi/test")
@@ -144,7 +196,11 @@ def test_connection_error_retries_then_raises() -> None:
 
 
 def test_json_parse_failure_maps_to_parse_error() -> None:
-    http = KexHttp(ex_api_key="key", retry_backoff=0, session=FakeSession(FakeResponse(ValueError("bad json"))))
+    http = KexHttp(
+        ex_api_key="key",
+        retry_backoff=0,
+        session=FakeSession(FakeResponse(ValueError("bad json"))),
+    )
 
     with pytest.raises(KexParseError):
         http.get_ex("/openapi/test")
@@ -181,7 +237,11 @@ def test_http_status_codes_are_typed(status: int, exc_type: type[Exception]) -> 
 
 
 def test_malformed_go_envelope_is_parse_error() -> None:
-    http = KexHttp(go_api_key="key", retry_backoff=0, session=FakeSession(FakeResponse({"response": {}})))
+    http = KexHttp(
+        go_api_key="key",
+        retry_backoff=0,
+        session=FakeSession(FakeResponse({"response": {}})),
+    )
 
     with pytest.raises(KexParseError):
         http.get_go("https://api.example.test")

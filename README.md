@@ -173,6 +173,21 @@ client = KexClient(ex_api_key="test-key", session=Session())
 
 새 엔드포인트를 추가할 때는 이 방식으로 쿼리 파라미터와 파싱 결과를 먼저 고정한 뒤, 필요하면 별도의 `@pytest.mark.live` 테스트를 추가합니다.
 
+### 실제 data.ex.co.kr 테스트
+
+실제 서버 테스트는 기본 테스트에서 자동 실행되지 않습니다. 로컬 `.env`에 키를 저장하고 `KEX_LIVE=1`을 명시했을 때만 실행됩니다.
+
+```powershell
+# .env
+KEX_EX_API_KEY=발급받은_key
+
+# PowerShell
+$env:KEX_LIVE="1"
+python -m pytest -m live -vv
+```
+
+현재 live 테스트는 `trafficIc`와 `trafficRoute`를 소량 호출해 인증키, 실제 응답 shape, 빈 결과의 `count=0` 처리를 검증합니다.
+
 ---
 
 ## 에러 처리
@@ -200,9 +215,12 @@ except KexServerError:
 
 - `data.go.kr`는 HTTP 200이어도 `response.header.resultCode`가 실패일 수 있습니다.
 - `data.ex.co.kr` 인증키는 `key`, `data.go.kr` 인증키는 `serviceKey`입니다.
+- `data.ex.co.kr`는 HTTPS를 사용합니다. HTTP로 호출하면 리다이렉트될 수 있습니다.
+- `data.ex.co.kr` 응답은 `list` 대신 endpoint 이름(`trafficIc` 등)을 top-level 배열 키로 사용할 수 있습니다.
 - 표준데이터 API는 `_type`이 아니라 `type=json`을 쓰는 경우가 있습니다.
 - 영업소/노선/기관 코드는 선행 0이 의미 있으므로 `int`로 바꾸지 않습니다.
 - 응답의 `items.item`, `list`, `data`는 단일 `dict` 또는 `list[dict]` 양쪽을 처리합니다.
+- `count=0`은 `None`이 아니라 정수 `0`으로 보존해야 합니다.
 - `NO_DATA`는 기본적으로 `KexNotFoundError`입니다. 빈 결과로 받고 싶으면 `KexClient(strict_no_data=False)`를 사용합니다.
 - 테스트 fixture의 숫자값은 실제 API처럼 문자열로 유지합니다. 그래야 변환 경계가 검증됩니다.
 

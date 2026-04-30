@@ -88,14 +88,20 @@
 
 | 필드 (API) | 라이브러리 필드 | 타입 | 설명 |
 |-----------|----------------|------|------|
-| `stdDate` | `collected_date` | `date` | 집계 일자 (YYYYMMDD) |
-| `stdTime` | `collected_time` | `str` | 집계 시각 (HH 또는 HHMM) |
-| `unitCode` | `unit_code` | `str` | 영업소 코드 |
+| `stdDate` / `sumDate` | `collected_date` | `date` | 집계 일자 (YYYYMMDD) |
+| `stdTime` / `sumTm` | `collected_time` | `str` | 집계 시각 (HH 또는 HHMM) |
+| `unitCode` | `unit_code` | `str` | 영업소 코드. 실제 응답에서 공백 suffix가 올 수 있어 strip 처리 |
 | `unitName` | `unit_name` | `str` | 영업소명 |
-| `inOutType` | `in_out` | `IOType` | 진출입 |
+| `inOutType` / `inoutType` | `in_out` | `IOType` | 진출입 |
 | `tcsType` | `tcs_type` | `TCSType` | TCS/하이패스 |
 | `carType` | `car_type` | `CarType` | 차종 |
-| `trafficVol` | `traffic_volume` | `int` | 교통량 (대) |
+| `trafficVol` / `trafficAmout` | `traffic_volume` | `int` | 교통량 (대). 실제 응답 typo `trafficAmout` 확인 |
+
+**실서버 확인 메모**
+
+- 확인일: 2026-05-01
+- `data.ex.co.kr` 실제 JSON은 `list`가 아니라 `trafficIc` top-level 배열에 레코드를 담아 반환할 수 있습니다.
+- `trafficIc`는 `inOutType=0`으로 요청해도 `inoutType=0`/`1` 레코드를 함께 반환하는 사례가 확인되었습니다. 호출자는 반환값의 `in_out`을 기준으로 다시 필터링할 수 있습니다.
 
 **예시**
 
@@ -122,6 +128,8 @@ print(res.items[0].traffic_volume)
 - **포털**: `data.ex.co.kr`
 - **경로**: `/openapi/trafficapi/trafficRoute`
 - **메서드**: `client.traffic.by_route()`
+
+> 실서버 확인(2026-05-01): 유효한 키와 파라미터에서 `{"code":"SUCCESS","count":0,"list":[]}` 형태가 반환될 수 있습니다. 라이브러리는 `total_count=0`으로 보존합니다.
 
 **파라미터**
 

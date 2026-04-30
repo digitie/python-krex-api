@@ -48,13 +48,17 @@ class NormalizedPayload:
 
 @dataclass(slots=True)
 class KexHttp:
-    ex_api_key: str | None = None
-    go_api_key: str | None = None
+    ex_api_key: str | None = field(default=None, repr=False)
+    go_api_key: str | None = field(default=None, repr=False)
     timeout: float = 10.0
     max_retries: int = 2
     retry_backoff: float = 0.5
-    session: Any = field(default_factory=_new_session)
-    ex_base_url: str = "http://data.ex.co.kr"
+    session: Any = field(default_factory=_new_session, repr=False)
+    ex_base_url: str = "https://data.ex.co.kr"
+
+    def __post_init__(self) -> None:
+        if self.session is None:
+            self.session = _new_session()
 
     def get_ex(self, path: str, params: dict[str, Any] | None = None) -> NormalizedPayload:
         if not self.ex_api_key:
@@ -115,26 +119,52 @@ class KexHttp:
         if self.retry_backoff > 0:
             sleep(self.retry_backoff * (2**attempt))
 
-    def _raise_for_response(self, response: Any, *, provider: str, params: dict[str, Any]) -> NormalizedPayload:
+    def _raise_for_response(
+        self,
+        response: Any,
+        *,
+        provider: str,
+        params: dict[str, Any],
+    ) -> NormalizedPayload:
         status = int(response.status_code)
         masked_params = _mask_params(params)
         if status in (401, 403):
-            raise KexAuthError(f"HTTP {status}: {response.text[:200]}", http_status=status, params=masked_params)
+            raise KexAuthError(
+                f"HTTP {status}: {response.text[:200]}",
+                http_status=status,
+                params=masked_params,
+            )
         if status == 400:
             raise KexBadRequestError(response.text[:200], http_status=status, params=masked_params)
         if status == 404:
             raise KexBadRequestError("endpoint not found", http_status=status, params=masked_params)
         if status == 429:
-            raise KexQuotaExceededError(response.text[:200], http_status=status, params=masked_params)
+            raise KexQuotaExceededError(
+                response.text[:200],
+                http_status=status,
+                params=masked_params,
+            )
         if 500 <= status < 600:
-            raise KexServerError(f"HTTP {status}: {response.text[:200]}", http_status=status, params=masked_params)
+            raise KexServerError(
+                f"HTTP {status}: {response.text[:200]}",
+                http_status=status,
+                params=masked_params,
+            )
 
         try:
             payload = response.json()
         except ValueError as exc:
-            raise KexParseError(f"JSON parse failure: {exc}", http_status=status, params=masked_params) from exc
+            raise KexParseError(
+                f"JSON parse failure: {exc}",
+                http_status=status,
+                params=masked_params,
+            ) from exc
         if not isinstance(payload, dict):
-            raise KexParseError("response JSON must be an object", response=payload, params=masked_params)
+            raise KexParseError(
+                "response JSON must be an object",
+                response=payload,
+                params=masked_params,
+            )
 
         if provider == "go" or "response" in payload:
             return _normalize_go_payload(payload, params=masked_params)
@@ -147,14 +177,7 @@ def _normalize_ex_payload(payload: dict[str, Any], *, params: dict[str, Any]) ->
     if code not in {"SUCCESS", "INFO-000", "00"}:
         _raise_ex_code(code, message, payload, params)
 
-    raw_items = (
-        payload.get("list")
-        or payload.get("List")
-        or payload.get("data")
-        or payload.get("items")
-        or payload.get("item")
-        or []
-    )
+    raw_items = _ex_items(payload)
     try:
         items = normalize_items(raw_items, "items")
     except TypeError as exc:
@@ -163,7 +186,7 @@ def _normalize_ex_payload(payload: dict[str, Any], *, params: dict[str, Any]) ->
         items=items,
         page_no=to_int_or_none(payload.get("pageNo")),
         num_of_rows=to_int_or_none(payload.get("numOfRows")),
-        total_count=to_int_or_none(payload.get("count") or payload.get("totalCount")),
+        total_count=to_int_or_none(_first_present(payload, "count", "totalCount")),
         raw=payload,
     )
 
@@ -174,7 +197,10 @@ def _normalize_go_payload(payload: dict[str, Any], *, params: dict[str, Any]) ->
         header = response["header"]
         body = response.get("body", {})
     except (KeyError, TypeError) as exc:
-        raise KexParseError("data.go.kr response did not contain response.header", response=payload) from exc
+        raise KexParseError(
+            "data.go.kr response did not contain response.header",
+            response=payload,
+        ) from exc
     if not isinstance(header, dict) or not isinstance(body, dict):
         raise KexParseError("data.go.kr header/body must be objects", response=payload)
 
@@ -199,7 +225,30 @@ def _normalize_go_payload(payload: dict[str, Any], *, params: dict[str, Any]) ->
     )
 
 
-def _raise_ex_code(code: str, message: str, payload: dict[str, Any], params: dict[str, Any]) -> None:
+def _ex_items(payload: dict[str, Any]) -> Any:
+    for key in ("list", "List", "data", "items", "item"):
+        if key in payload:
+            return payload[key]
+    for key, value in payload.items():
+        metadata_keys = {"code", "message", "count", "pageNo", "numOfRows", "pageSize"}
+        if key not in metadata_keys and isinstance(value, list):
+            return value
+    return []
+
+
+def _first_present(payload: dict[str, Any], *keys: str) -> Any:
+    for key in keys:
+        if key in payload:
+            return payload[key]
+    return None
+
+
+def _raise_ex_code(
+    code: str,
+    message: str,
+    payload: dict[str, Any],
+    params: dict[str, Any],
+) -> None:
     text = f"data.ex.co.kr returned {code}: {message}"
     kwargs: dict[str, Any] = {"code": code, "response": payload, "params": params}
     if code in {"INVALID_KEY", "EXPIRED_KEY", "NO_REGISTERED_KEY"}:
@@ -219,7 +268,12 @@ def _raise_ex_code(code: str, message: str, payload: dict[str, Any], params: dic
     raise KexError(text, **kwargs)
 
 
-def _raise_go_code(code: str, message: str, payload: dict[str, Any], params: dict[str, Any]) -> None:
+def _raise_go_code(
+    code: str,
+    message: str,
+    payload: dict[str, Any],
+    params: dict[str, Any],
+) -> None:
     text = f"data.go.kr returned {code}: {message}"
     kwargs: dict[str, Any] = {"code": code, "response": payload, "params": params}
     if code in {"01", "02", "04"}:

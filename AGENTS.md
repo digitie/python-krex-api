@@ -13,8 +13,11 @@ This repository follows the same working shape as `pykma` and `pyopinet`.
   (`routeNo`, `unitCode`, branch codes, office codes).
 - Handle `list` and single `dict` item shapes. Korean public APIs often switch
   between them when only one item is returned.
+- Handle endpoint-named top-level arrays from `data.ex.co.kr`, such as
+  `trafficIc`.
 - Always inspect body-level API result codes. `data.go.kr` commonly returns
   HTTP 200 for application errors.
+- Keep API keys out of repr strings, failure messages, commits, and docs.
 
 ## Module Ownership
 
@@ -50,6 +53,8 @@ When behavior changes, update the matching document in the same patch:
 - Run `python -m compileall kex_openapi tests` and `python -m pytest` before
   pushing.
 - Run `python -m mypy kex_openapi` when `mypy` is installed.
+- Run `$env:KEX_LIVE="1"; python -m pytest -m live -vv` only when deliberately
+  validating against the real `data.ex.co.kr` server.
 - Do not include `.pytest_cache`, `.mypy_cache`, `.ruff_cache`, `.coverage`, or
   virtual environments.
 - Keep commits focused enough that a failing endpoint can be reverted without
