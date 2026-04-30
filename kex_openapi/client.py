@@ -1,0 +1,495 @@
+"""High-level client for Korea Expressway Corporation OpenAPIs."""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass
+from enum import StrEnum
+from typing import Any, Callable, TypeVar
+
+from ._convert import strip_or_none, to_bool_yn, to_date_or_none, to_float_or_none, to_int_or_none
+from ._http import KexHttp, NormalizedPayload
+from .codes import (
+    ROUTE_NAMES,
+    CarType,
+    CongestionLevel,
+    Direction,
+    DiscountType,
+    IOType,
+    RoadOperator,
+    TCSType,
+    TimeUnit,
+    coerce_code,
+)
+from .exceptions import KexInvalidParameterError, KexNotFoundError, KexParseError
+from .models import FoodPrice, Incident, Page, RestArea, Route, TollFee, Tollgate, TrafficByIc, TrafficFlow
+
+T = TypeVar("T")
+E = TypeVar("E", bound=StrEnum)
+
+
+class KexClient:
+    """Client entrypoint for KEX OpenAPIs.
+
+    The client exposes endpoint namespaces (`traffic`, `tollfee`, `restarea`,
+    `facility`, `admin`, and `reference`) to keep method names close to the
+    documentation in `endpoints.md`.
+    """
+
+    def __init__(
+        self,
+        ex_api_key: str | None = None,
+        go_api_key: str | None = None,
+        *,
+        timeout: float = 10.0,
+        strict_no_data: bool = True,
+        max_retries: int = 2,
+        retry_backoff: float = 0.5,
+        session: Any | None = None,
+    ) -> None:
+        self.ex_api_key = ex_api_key or os.getenv("KEX_EX_API_KEY")
+        self.go_api_key = go_api_key or os.getenv("KEX_GO_API_KEY")
+        self.strict_no_data = strict_no_data
+        self._http = KexHttp(
+            self.ex_api_key,
+            self.go_api_key,
+            timeout=timeout,
+            max_retries=max_retries,
+            retry_backoff=retry_backoff,
+            session=session,
+        )
+        self.traffic = TrafficNamespace(self)
+        self.tollfee = TollfeeNamespace(self)
+        self.restarea = RestareaNamespace(self)
+        self.facility = FacilityNamespace(self)
+        self.admin = AdminNamespace(self)
+        self.reference = ReferenceNamespace(self)
+
+    @classmethod
+    def from_env(cls, **kwargs: Any) -> "KexClient":
+        return cls(**kwargs)
+
+    def _page_ex(
+        self,
+        path: str,
+        params: dict[str, Any],
+        parser: Callable[[dict[str, Any]], T],
+    ) -> Page[T]:
+        try:
+            payload = self._http.get_ex(path, _clean(params))
+        except KexNotFoundError:
+            if self.strict_no_data:
+                raise
+            return Page(items=())
+        return _parse_page(payload, parser)
+
+    def _page_go(
+        self,
+        url: str,
+        params: dict[str, Any],
+        parser: Callable[[dict[str, Any]], T],
+        *,
+        standard: bool = False,
+    ) -> Page[T]:
+        try:
+            payload = self._http.get_go(url, _clean(params), standard=standard)
+        except KexNotFoundError:
+            if self.strict_no_data:
+                raise
+            return Page(items=())
+        return _parse_page(payload, parser)
+
+
+@dataclass(frozen=True, slots=True)
+class TrafficNamespace:
+    _client: KexClient
+
+    def by_ic(
+        self,
+        *,
+        ex_div_code: RoadOperator | str,
+        unit_code: str,
+        in_out: IOType | str,
+        time_unit: TimeUnit | str,
+        tcs_type: TCSType | str,
+        car_type: CarType | str,
+        num_of_rows: int = 1000,
+        page_no: int = 1,
+    ) -> Page[TrafficByIc]:
+        _require(unit_code, "unit_code")
+        return self._client._page_ex(
+            "/openapi/trafficapi/trafficIc",
+            {
+                "exDivCode": coerce_code(RoadOperator, ex_div_code, "ex_div_code"),
+                "unitCode": unit_code,
+                "inOutType": coerce_code(IOType, in_out, "in_out"),
+                "tmType": coerce_code(TimeUnit, time_unit, "time_unit"),
+                "tcsType": coerce_code(TCSType, tcs_type, "tcs_type"),
+                "carType": coerce_code(CarType, car_type, "car_type"),
+                "numOfRows": num_of_rows,
+                "pageNo": page_no,
+            },
+            _traffic_by_ic,
+        )
+
+    def by_route(
+        self,
+        *,
+        route_no: str,
+        time_unit: TimeUnit | str,
+        direction: Direction | str | None = None,
+        car_type: CarType | str | None = None,
+        std_date: str | None = None,
+        num_of_rows: int = 1000,
+        page_no: int = 1,
+    ) -> Page[dict[str, Any]]:
+        _require(route_no, "route_no")
+        return self._client._page_ex(
+            "/openapi/trafficapi/trafficRoute",
+            {
+                "routeNo": route_no,
+                "tmType": coerce_code(TimeUnit, time_unit, "time_unit"),
+                "dirType": _optional_code(Direction, direction, "direction"),
+                "carType": _optional_code(CarType, car_type, "car_type"),
+                "stdDate": std_date,
+                "numOfRows": num_of_rows,
+                "pageNo": page_no,
+            },
+            dict,
+        )
+
+    def flow(
+        self,
+        *,
+        route_no: str | None = None,
+        conzone_id: str | None = None,
+        direction: Direction | str | None = None,
+        num_of_rows: int = 1000,
+        page_no: int = 1,
+    ) -> Page[TrafficFlow]:
+        return self._client._page_ex(
+            "/openapi/trafficapi/realFlow",
+            {
+                "routeNo": route_no,
+                "conzoneId": conzone_id,
+                "dirType": _optional_code(Direction, direction, "direction"),
+                "numOfRows": num_of_rows,
+                "pageNo": page_no,
+            },
+            _traffic_flow,
+        )
+
+    def incident(
+        self,
+        *,
+        route_no: str | None = None,
+        incident_type: str | None = None,
+        num_of_rows: int = 1000,
+        page_no: int = 1,
+    ) -> Page[Incident]:
+        return self._client._page_ex(
+            "/openapi/trafficapi/incident",
+            {
+                "routeNo": route_no,
+                "incidentType": incident_type,
+                "numOfRows": num_of_rows,
+                "pageNo": page_no,
+            },
+            _incident,
+        )
+
+    def vds_raw(self, **params: Any) -> Page[dict[str, Any]]:
+        return self._client._page_ex("/openapi/trafficapi/vdsRaw", params, dict)
+
+    def avc_raw(self, *, vds_id: str, std_date: str, **params: Any) -> Page[dict[str, Any]]:
+        _require(vds_id, "vds_id")
+        _require(std_date, "std_date")
+        query = {"vdsId": vds_id, "stdDate": std_date}
+        query.update(params)
+        return self._client._page_ex("/openapi/trafficapi/avcRaw", query, dict)
+
+
+@dataclass(frozen=True, slots=True)
+class TollfeeNamespace:
+    _client: KexClient
+
+    def between_tollgates(
+        self,
+        *,
+        start_unit_code: str,
+        end_unit_code: str,
+        car_type: CarType | str,
+        discount_type: DiscountType | str | None = None,
+        num_of_rows: int = 100,
+        page_no: int = 1,
+    ) -> Page[TollFee]:
+        _require(start_unit_code, "start_unit_code")
+        _require(end_unit_code, "end_unit_code")
+        return self._client._page_ex(
+            "/openapi/tollfee/tollFeeBetweenTcs",
+            {
+                "startUnitCode": start_unit_code,
+                "endUnitCode": end_unit_code,
+                "carType": coerce_code(CarType, car_type, "car_type"),
+                "discountType": _optional_code(DiscountType, discount_type, "discount_type"),
+                "numOfRows": num_of_rows,
+                "pageNo": page_no,
+            },
+            _toll_fee,
+        )
+
+    def tollgate_list(self, *, num_of_rows: int = 1000, page_no: int = 1) -> Page[Tollgate]:
+        return self._client._page_ex(
+            "/openapi/business/openapibusinessunit",
+            {"numOfRows": num_of_rows, "pageNo": page_no},
+            _tollgate,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class RestareaNamespace:
+    _client: KexClient
+
+    def list_all(
+        self,
+        *,
+        rest_area_name: str | None = None,
+        route_name: str | None = None,
+        num_of_rows: int = 1000,
+        page_no: int = 1,
+    ) -> Page[RestArea]:
+        return self._client._page_go(
+            "https://api.data.go.kr/openapi/tn_pubr_public_rest_area_api",
+            {
+                "restAreaNm": rest_area_name,
+                "routeNm": route_name,
+                "numOfRows": num_of_rows,
+                "pageNo": page_no,
+            },
+            _rest_area,
+            standard=True,
+        )
+
+    def food_price(self, **params: Any) -> Page[FoodPrice]:
+        return self._client._page_ex("/openapi/restinfo/restMenuList", params, _food_price)
+
+    def parking(self, **params: Any) -> Page[dict[str, Any]]:
+        return self._client._page_ex("/openapi/restinfo/restParking", params, dict)
+
+    def wifi(self, **params: Any) -> Page[dict[str, Any]]:
+        return self._client._page_ex("/openapi/restinfo/restWifi", params, dict)
+
+    def restroom(self, **params: Any) -> Page[dict[str, Any]]:
+        return self._client._page_ex("/openapi/restinfo/restRestroom", params, dict)
+
+
+@dataclass(frozen=True, slots=True)
+class FacilityNamespace:
+    _client: KexClient
+
+    def tollgate_info(self, **params: Any) -> Page[dict[str, Any]]:
+        return self._client._page_go(
+            "https://apis.data.go.kr/B552061/TollgateInfoService/getTollgateInfo",
+            params,
+            dict,
+        )
+
+    def drowsy_shelter(self, **params: Any) -> Page[dict[str, Any]]:
+        return self._client._page_ex("/openapi/restinfo/drowsyShelter", params, dict)
+
+    def shoulder_lane(self, **params: Any) -> Page[dict[str, Any]]:
+        return self._client._page_go(
+            "https://apis.data.go.kr/B552061/ShoulderLaneService/getShoulderLane",
+            params,
+            dict,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class AdminNamespace:
+    _client: KexClient
+
+    def procurement_contracts(self, **params: Any) -> Page[dict[str, Any]]:
+        return self._client._page_go(
+            "https://apis.data.go.kr/B552061/ProcurementContractService/getContracts",
+            params,
+            dict,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ReferenceNamespace:
+    _client: KexClient
+
+    def routes(self) -> tuple[Route, ...]:
+        return tuple(Route(route_no=code, route_name=name, short_name=name.replace("고속도로", "선")) for code, name in ROUTE_NAMES.items())
+
+    def common_codes(self) -> dict[str, dict[str, str]]:
+        return {
+            "car_type": {item.value: item.label for item in CarType},
+            "tcs_type": {item.value: item.label for item in TCSType},
+            "road_operator": {item.value: item.label for item in RoadOperator},
+            "in_out": {item.value: item.label for item in IOType},
+            "time_unit": {item.value: item.label for item in TimeUnit},
+            "direction": {item.value: item.label for item in Direction},
+            "congestion": {item.value: item.label for item in CongestionLevel},
+            "discount": {item.value: item.label for item in DiscountType},
+        }
+
+
+def _parse_page(payload: NormalizedPayload, parser: Callable[[dict[str, Any]], T]) -> Page[T]:
+    parsed = []
+    for row in payload.items:
+        try:
+            parsed.append(parser(row))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise KexParseError(f"failed to parse response record: {exc}", response=row) from exc
+    return Page(
+        items=tuple(parsed),
+        page_no=payload.page_no,
+        num_of_rows=payload.num_of_rows,
+        total_count=payload.total_count,
+        raw=payload.raw,
+    )
+
+
+def _traffic_by_ic(row: dict[str, Any]) -> TrafficByIc:
+    return TrafficByIc(
+        collected_date=to_date_or_none(_get(row, "stdDate", "collectedDate")),
+        collected_time=strip_or_none(_get(row, "stdTime", "collectedTime")),
+        unit_code=str(_required(row, "unitCode")),
+        unit_name=strip_or_none(_get(row, "unitName")),
+        in_out=_enum_or_none(IOType, _get(row, "inOutType")),
+        tcs_type=_enum_or_none(TCSType, _get(row, "tcsType")),
+        car_type=_enum_or_none(CarType, _get(row, "carType")),
+        traffic_volume=to_int_or_none(_get(row, "trafficVol", "trafficVolume")),
+        raw=row,
+    )
+
+
+def _traffic_flow(row: dict[str, Any]) -> TrafficFlow:
+    return TrafficFlow(
+        conzone_id=strip_or_none(_get(row, "conzoneId", "conzoneID")),
+        conzone_name=strip_or_none(_get(row, "conzoneName")),
+        route_no=strip_or_none(_get(row, "routeNo")),
+        route_name=strip_or_none(_get(row, "routeName")),
+        direction=_enum_or_none(Direction, _get(row, "dirType", "directionCode")),
+        speed=to_float_or_none(_get(row, "speed", "avgSpeed")),
+        free_flow_speed=to_float_or_none(_get(row, "tmFreeFlow", "freeFlowSpeed")),
+        congestion_level=_enum_or_none(CongestionLevel, _get(row, "congestionLevel", "conzoneGrade")),
+        updated_at=strip_or_none(_get(row, "updTime", "updateTime", "updatedAt")),
+        raw=row,
+    )
+
+
+def _incident(row: dict[str, Any]) -> Incident:
+    return Incident(
+        route_no=strip_or_none(_get(row, "routeNo")),
+        route_name=strip_or_none(_get(row, "routeName")),
+        direction=_enum_or_none(Direction, _get(row, "dirType", "directionCode")),
+        incident_type=strip_or_none(_get(row, "incidentType", "eventType")),
+        message=strip_or_none(_get(row, "message", "contents", "incidentContent")),
+        started_at=strip_or_none(_get(row, "startDate", "startTime")),
+        ended_at=strip_or_none(_get(row, "endDate", "endTime")),
+        raw=row,
+    )
+
+
+def _toll_fee(row: dict[str, Any]) -> TollFee:
+    return TollFee(
+        start_unit_code=str(_required(row, "startUnitCode")),
+        start_unit_name=strip_or_none(_get(row, "startUnitName")),
+        end_unit_code=str(_required(row, "endUnitCode")),
+        end_unit_name=strip_or_none(_get(row, "endUnitName")),
+        car_type=_enum_or_none(CarType, _get(row, "carType")),
+        discount_type=_enum_or_none(DiscountType, _get(row, "discountType")),
+        route_count=to_int_or_none(_get(row, "routeCount")),
+        total_length_km=to_float_or_none(_get(row, "totalLength", "totalLengthKm")),
+        travel_time_min=to_int_or_none(_get(row, "travelTime", "travelTimeMin")),
+        toll_fee=to_int_or_none(_get(row, "tollFee")),
+        toll_fee_night=to_int_or_none(_get(row, "tollFeeNight")),
+        toll_fee_rush=to_int_or_none(_get(row, "tollFeeRush")),
+        raw=row,
+    )
+
+
+def _tollgate(row: dict[str, Any]) -> Tollgate:
+    return Tollgate(
+        unit_code=str(_required(row, "unitCode")),
+        unit_name=str(_required(row, "unitName")),
+        route_no=strip_or_none(_get(row, "routeNo")),
+        route_name=strip_or_none(_get(row, "routeName")),
+        ex_div_code=strip_or_none(_get(row, "exDivCode")),
+        x=to_float_or_none(_get(row, "xValue", "x")),
+        y=to_float_or_none(_get(row, "yValue", "y")),
+        head_office_code=strip_or_none(_get(row, "headOfficeCode")),
+        branch_office_code=strip_or_none(_get(row, "branchOfficeCode")),
+        raw=row,
+    )
+
+
+def _rest_area(row: dict[str, Any]) -> RestArea:
+    return RestArea(
+        name=str(_required(row, "restAreaNm", "serviceAreaName")),
+        route_name=strip_or_none(_get(row, "routeNm", "routeName")),
+        direction=strip_or_none(_get(row, "directionContent", "direction")),
+        lat=to_float_or_none(_get(row, "lcLatitude", "latitude")),
+        lon=to_float_or_none(_get(row, "lcLongitude", "longitude")),
+        has_gas_station=to_bool_yn(_get(row, "gasStnYn")),
+        has_lpg_station=to_bool_yn(_get(row, "lpgStnYn")),
+        has_ev_charger=to_bool_yn(_get(row, "evChargYn")),
+        phone_number=strip_or_none(_get(row, "phoneNumber", "tel")),
+        reference_date=to_date_or_none(_get(row, "referenceDate")),
+        raw=row,
+    )
+
+
+def _food_price(row: dict[str, Any]) -> FoodPrice:
+    return FoodPrice(
+        service_area_code=strip_or_none(_get(row, "serviceAreaCode")),
+        service_area_name=strip_or_none(_get(row, "serviceAreaName")),
+        store_code=strip_or_none(_get(row, "storeCode")),
+        store_name=strip_or_none(_get(row, "storeName")),
+        food_code=strip_or_none(_get(row, "foodCode")),
+        food_name=str(_required(row, "foodName")),
+        price=to_int_or_none(_get(row, "price")),
+        is_recommended=to_bool_yn(_get(row, "recommendYn")),
+        raw=row,
+    )
+
+
+def _clean(params: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in params.items() if value is not None}
+
+
+def _require(value: str | None, field: str) -> None:
+    if not value:
+        raise KexInvalidParameterError(f"{field} must not be empty")
+
+
+def _optional_code(enum_type: type[E], value: E | str | None, field: str) -> str | None:
+    if value is None:
+        return None
+    return coerce_code(enum_type, value, field)
+
+
+def _enum_or_none(enum_type: type[T], value: Any) -> T | None:
+    text = strip_or_none(value)
+    if text is None:
+        return None
+    return enum_type(text)  # type: ignore[call-arg]
+
+
+def _get(row: dict[str, Any], *names: str) -> Any:
+    for name in names:
+        if name in row:
+            return row[name]
+    return None
+
+
+def _required(row: dict[str, Any], *names: str) -> Any:
+    value = _get(row, *names)
+    if strip_or_none(value) is None:
+        joined = "/".join(names)
+        raise ValueError(f"{joined} is required")
+    return value

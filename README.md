@@ -1,0 +1,264 @@
+# kex-openapi
+
+한국도로공사(Korea Expressway Corporation, KEX) 공공데이터 OpenAPI를 Python에서 편하게 쓰기 위한 비공식 클라이언트 라이브러리입니다.
+
+`kex-openapi`는 `data.ex.co.kr`와 `data.go.kr`에 흩어진 고속도로 교통량, 실시간 소통, 통행료, 영업소, 휴게소, 기준정보 API를 한 인터페이스로 감싸고, 응답을 Python dataclass와 enum으로 변환합니다.
+
+> 현재 저장소는 초기 구현 단계입니다. 세부 엔드포인트 명세는 [endpoints.md](endpoints.md), 코드표는 [codes.md](codes.md), 에러 매핑은 [error-codes.md](error-codes.md), 구현 규칙은 [SKILL.md](SKILL.md)와 [AGENTS.md](AGENTS.md)를 참고하세요.
+
+---
+
+## 핵심 특징
+
+- **네임스페이스형 클라이언트**: `client.traffic.flow()`, `client.tollfee.between_tollgates()`처럼 문서의 API 범주와 같은 구조로 호출합니다.
+- **두 포털 동시 지원**: `data.ex.co.kr` 키(`KEX_EX_API_KEY`)와 `data.go.kr` 키(`KEX_GO_API_KEY`)를 분리해 사용합니다.
+- **Python 타입 변환**: 날짜, 숫자, Y/N 플래그, 코드값을 `date`, `int`, `float`, `bool`, `StrEnum`으로 변환합니다.
+- **명확한 예외 계층**: 인증, 한도 초과, 파라미터 오류, 데이터 없음, 서버 오류, 파싱 오류, 네트워크 오류를 구분합니다.
+- **본문 에러 코드 검사**: `data.go.kr`가 HTTP 200으로 반환하는 애플리케이션 에러도 놓치지 않습니다.
+- **네트워크 없는 테스트**: fake session 기반으로 URL/쿼리/파싱/에러 매핑을 검증합니다.
+
+---
+
+## 시작하기
+
+### 1단계: 인증키 준비
+
+```bash
+export KEX_EX_API_KEY="data.ex.co.kr에서_발급받은_키"
+export KEX_GO_API_KEY="data.go.kr에서_발급받은_decoding_키"
+```
+
+Windows PowerShell:
+
+```powershell
+$env:KEX_EX_API_KEY="data.ex.co.kr에서_발급받은_키"
+$env:KEX_GO_API_KEY="data.go.kr에서_발급받은_decoding_키"
+```
+
+`requests.get(..., params=...)`로 전달하므로 `data.go.kr` 키는 Decoding 값을 권장합니다.
+
+### 2단계: 설치
+
+개발 중인 로컬 저장소:
+
+```bash
+pip install -e ".[dev]"
+```
+
+PyPI 배포 후:
+
+```bash
+pip install kex-openapi
+```
+
+### 3단계: 사용
+
+```python
+from kex_openapi import CarType, KexClient
+
+client = KexClient.from_env()
+
+# 실시간 소통
+flows = client.traffic.flow(route_no="0010")
+for item in flows.items[:5]:
+    print(item.route_name, item.conzone_name, item.speed, item.congestion_level)
+
+# 영업소간 통행료
+fees = client.tollfee.between_tollgates(
+    start_unit_code="101",
+    end_unit_code="105",
+    car_type=CarType.LIGHT,
+)
+print(fees.items[0].toll_fee)
+
+# 휴게소 표준데이터(data.go.kr)
+areas = client.restarea.list_all(route_name="경부고속도로")
+print(areas.items[0].name, areas.items[0].has_ev_charger)
+```
+
+### 키를 직접 넘기는 방식
+
+환경변수 대신 명시적으로 키를 주입할 수도 있습니다. 테스트나 배치 작업에서는 이 방식이 더 읽기 쉽습니다.
+
+```python
+from kex_openapi import KexClient
+
+client = KexClient(
+    ex_api_key="data.ex.co.kr 키",
+    go_api_key="data.go.kr Decoding 키",
+    timeout=5.0,
+    max_retries=2,
+)
+```
+
+실제 운영 코드에서는 키를 코드에 직접 적지 말고 Secret Manager, `.env`, CI/CD secret 같은 외부 설정에서 읽어오세요.
+
+---
+
+## 제공 API
+
+| 범주 | 메서드 | 원본 포털 | 반환 |
+|---|---|---|---|
+| 교통 | `traffic.by_ic()` | `data.ex.co.kr` | `Page[TrafficByIc]` |
+| 교통 | `traffic.by_route()` | `data.ex.co.kr` | `Page[dict]` |
+| 교통 | `traffic.flow()` | `data.ex.co.kr` | `Page[TrafficFlow]` |
+| 교통 | `traffic.incident()` | `data.ex.co.kr` | `Page[Incident]` |
+| 교통 | `traffic.vds_raw()`, `traffic.avc_raw()` | `data.ex.co.kr` | `Page[dict]` |
+| 통행료 | `tollfee.between_tollgates()` | `data.ex.co.kr` | `Page[TollFee]` |
+| 통행료 | `tollfee.tollgate_list()` | `data.ex.co.kr` | `Page[Tollgate]` |
+| 휴게소 | `restarea.list_all()` | `data.go.kr` | `Page[RestArea]` |
+| 휴게소 | `restarea.food_price()` | `data.ex.co.kr` | `Page[FoodPrice]` |
+| 휴게소 | `restarea.parking()`, `wifi()`, `restroom()` | `data.ex.co.kr` | `Page[dict]` |
+| 시설 | `facility.tollgate_info()` | `data.go.kr` | `Page[dict]` |
+| 시설 | `facility.drowsy_shelter()` | `data.ex.co.kr` | `Page[dict]` |
+| 시설 | `facility.shoulder_lane()` | `data.go.kr` | `Page[dict]` |
+| 행정 | `admin.procurement_contracts()` | `data.go.kr` | `Page[dict]` |
+| 기준정보 | `reference.routes()` | 내장 코드표 | `tuple[Route, ...]` |
+| 기준정보 | `reference.common_codes()` | 내장 코드표 | `dict[str, dict[str, str]]` |
+
+상세 파라미터와 응답 필드는 [endpoints.md](endpoints.md)를 기준으로 관리합니다.
+
+---
+
+## 구현 상태
+
+현재 구현은 “공통 호출 기반 + 핵심 모델 우선” 단계입니다.
+
+| 영역 | 상태 | 비고 |
+|---|---|---|
+| HTTP transport | 구현됨 | 5xx/네트워크 retry, 키 마스킹, JSON 파싱 |
+| `data.ex.co.kr` envelope | 구현됨 | `SUCCESS`, `NO_DATA`, 인증/한도/서버 코드 매핑 |
+| `data.go.kr` envelope | 구현됨 | `response.header.resultCode` 검사 |
+| 교통 핵심 모델 | 부분 구현 | `TrafficByIc`, `TrafficFlow`, `Incident` |
+| 통행료 핵심 모델 | 구현됨 | `TollFee`, `Tollgate` |
+| 휴게소 핵심 모델 | 부분 구현 | 표준 휴게소, 음식가격 |
+| 시설/행정 상세 모델 | 원시 dict 반환 | 경로 검증 후 dataclass 승격 예정 |
+| 라이브 호출 테스트 | 미포함 | 기본 테스트는 네트워크를 쓰지 않음 |
+
+검증되지 않은 포털 경로나 데이터셋은 무리해서 dataclass로 고정하지 않고 `Page[dict]`로 반환합니다. 실제 응답 fixture가 쌓이면 모델로 승격합니다.
+
+---
+
+## 응답과 페이지 처리
+
+모든 목록형 API는 `Page[T]`를 반환합니다.
+
+```python
+page = client.traffic.flow(route_no="0010")
+
+page.items        # tuple[TrafficFlow, ...]
+page.page_no      # int | None
+page.num_of_rows  # int | None
+page.total_count  # int | None
+page.raw          # 원본 응답 dict | None
+```
+
+`Page.items`는 tuple입니다. 호출 이후 결과가 의도치 않게 바뀌는 일을 줄이기 위한 선택입니다.
+
+---
+
+## 로컬 테스트 예제
+
+실제 포털 호출 없이 fake session을 주입할 수 있습니다.
+
+```python
+from kex_openapi import KexClient
+
+class Session:
+    def get(self, url, *, params, timeout):
+        ...
+
+client = KexClient(ex_api_key="test-key", session=Session())
+```
+
+새 엔드포인트를 추가할 때는 이 방식으로 쿼리 파라미터와 파싱 결과를 먼저 고정한 뒤, 필요하면 별도의 `@pytest.mark.live` 테스트를 추가합니다.
+
+---
+
+## 에러 처리
+
+```python
+from kex_openapi import KexAuthError, KexClient, KexQuotaExceededError, KexServerError
+
+client = KexClient.from_env()
+
+try:
+    client.traffic.flow(route_no="0010")
+except KexAuthError:
+    print("인증키를 확인하세요.")
+except KexQuotaExceededError:
+    print("일일 호출 한도를 초과했습니다.")
+except KexServerError:
+    print("포털 장애 가능성이 있어 재시도 대상입니다.")
+```
+
+예외 계층과 원본 코드 매핑은 [error-codes.md](error-codes.md)에 정리되어 있습니다.
+
+---
+
+## 반복 실수 방지 체크리스트
+
+- `data.go.kr`는 HTTP 200이어도 `response.header.resultCode`가 실패일 수 있습니다.
+- `data.ex.co.kr` 인증키는 `key`, `data.go.kr` 인증키는 `serviceKey`입니다.
+- 표준데이터 API는 `_type`이 아니라 `type=json`을 쓰는 경우가 있습니다.
+- 영업소/노선/기관 코드는 선행 0이 의미 있으므로 `int`로 바꾸지 않습니다.
+- 응답의 `items.item`, `list`, `data`는 단일 `dict` 또는 `list[dict]` 양쪽을 처리합니다.
+- `NO_DATA`는 기본적으로 `KexNotFoundError`입니다. 빈 결과로 받고 싶으면 `KexClient(strict_no_data=False)`를 사용합니다.
+- 테스트 fixture의 숫자값은 실제 API처럼 문자열로 유지합니다. 그래야 변환 경계가 검증됩니다.
+
+---
+
+## 개발
+
+```bash
+python -m compileall kex_openapi tests
+python -m pytest
+python -m pytest --cov=kex_openapi --cov-fail-under=90
+python -m mypy kex_openapi
+ruff check .
+```
+
+기본 테스트는 실제 API를 호출하지 않아야 합니다. 실제 호출 테스트는 `@pytest.mark.live`로 분리하고 인증키가 없으면 skip하세요.
+
+---
+
+## 패키지 설계
+
+`kex-openapi`는 얇은 계층을 선호합니다.
+
+| 모듈 | 책임 |
+|---|---|
+| `kex_openapi.client` | 사용자용 `KexClient`, 엔드포인트 네임스페이스, 모델 파싱 |
+| `kex_openapi._http` | HTTP 호출, retry, 포털별 envelope 정규화, 에러 매핑 |
+| `kex_openapi._convert` | 문자열 기반 API 응답을 Python 타입으로 변환 |
+| `kex_openapi.codes` | 안정적인 코드값 enum과 라벨 |
+| `kex_openapi.models` | public dataclass 반환 모델 |
+| `kex_openapi.exceptions` | 예외 계층 |
+
+새 기능을 넣을 때는 보통 `codes.py`/`models.py`를 먼저 보강하고, `client.py`에서 메서드를 연결한 뒤, `tests/`에서 fake 응답으로 쿼리와 변환을 잠급니다.
+
+---
+
+## 프로젝트 파일
+
+```text
+kex_openapi/
+├── __init__.py
+├── client.py
+├── _http.py
+├── _convert.py
+├── codes.py
+├── exceptions.py
+├── models.py
+└── py.typed
+tests/
+└── test_*.py
+```
+
+---
+
+## 라이선스
+
+GPL-3.0-or-later. 자세한 조건은 [LICENSE](LICENSE)를 참고하세요.
+
+원천 데이터의 저작권과 이용조건은 한국도로공사, 공공데이터포털, 각 데이터 제공기관 정책을 따릅니다. 이 프로젝트는 비공식 라이브러리이며 한국도로공사와 무관합니다.

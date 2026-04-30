@@ -1,0 +1,137 @@
+---
+name: kex-openapi
+description: Build, extend, test, or troubleshoot the Python client for Korea Expressway Corporation OpenAPIs exposed through data.ex.co.kr and data.go.kr.
+---
+
+# kex-openapi Skill
+
+Use this guide when working on the `kex-openapi` Python library.
+
+## Scope
+
+This project wraps Korea Expressway Corporation public APIs from:
+
+1. `data.ex.co.kr` with `key` and `type=json`
+2. `data.go.kr` / `api.data.go.kr` with `serviceKey` and JSON response options
+
+The public package import name is `kex_openapi`; the distribution name is
+`kex-openapi`.
+
+## Repository Rules
+
+- Read `endpoints.md`, `codes.md`, and `error-codes.md` before changing endpoint behavior.
+- Keep the implementation shape aligned with `pykma` and `pyopinet`:
+  `client.py`, `_http.py`, `_convert.py`, `codes.py`, `models.py`, `exceptions.py`.
+- Do not add live network calls to ordinary tests.
+- Do not commit API keys or generated caches.
+- Prefer dataclasses for public return models and `StrEnum` for stable code values.
+- If an endpoint path is uncertain, expose it as `Page[dict]` first and document
+  the uncertainty instead of pretending the schema is stable.
+
+## API Key Rules
+
+- `KEX_EX_API_KEY`: `data.ex.co.kr` key.
+- `KEX_GO_API_KEY`: `data.go.kr` key. Prefer the decoded key when using
+  `requests` query params.
+- If a user pastes a key into chat or a file, tell them to rotate it and remove
+  the key from the working tree.
+
+## URL and Parameter Rules
+
+`data.ex.co.kr`:
+
+- Base URL: `http://data.ex.co.kr`
+- Auth parameter: `key`
+- JSON parameter: `type=json`
+- Pagination: `numOfRows`, `pageNo`
+- Common result shape: `{"code": "SUCCESS", "list": [...]}`
+
+`data.go.kr`:
+
+- Auth parameter: `serviceKey`
+- Many service APIs use `_type=json`
+- Some standard data APIs use `type=json`
+- Common result shape:
+  `{"response": {"header": {"resultCode": "00"}, "body": {"items": {"item": [...]}}}}`
+
+## Error Mapping
+
+Never rely on HTTP status alone. Inspect body-level result codes.
+
+- Auth: `INVALID_KEY`, `EXPIRED_KEY`, `NO_REGISTERED_KEY`, `20`, `21`, `30`, `31`, `32`, `33`
+- Quota: `EXCEEDED_LIMIT`, `22`, HTTP `429`
+- Missing parameter: `INVALID_REQUEST_PARAMETER`, `11`
+- Invalid parameter: `INVALID_PARAMETER_VALUE`, `10`
+- No data: `NO_DATA`, `03`
+- Server/transient: `SYSTEM_ERROR`, `SERVICE_TIMEOUT`, `SERVICE_UNAVAILABLE`, `01`, `02`, `04`, `05`, HTTP `5xx`
+
+## Conversion Rules
+
+- Preserve route, tollgate, office, and code values as strings.
+- Convert API dates only at the model boundary.
+- Convert numeric metrics (`speed`, `tollFee`, `trafficVol`) to `float` or `int`.
+- Convert Y/N fields to `bool | None`.
+- Normalize single-item `dict` and multi-item `list[dict]` to the same internal list shape.
+
+## Tests Required For New Endpoints
+
+Every new endpoint wrapper should include:
+
+- query parameter test, including enum to raw API code conversion;
+- success parsing test with string numeric/date inputs;
+- single-item `dict` normalization test when applicable;
+- body-level provider error mapping test;
+- malformed response shape test;
+- missing required local parameter test.
+
+## Documentation Required For New Endpoints
+
+Update documentation in the same change:
+
+- `README.md`: add user-facing usage only when the endpoint is meant to be public.
+- `endpoints.md`: add source portal, path, method name, parameters, and known response fields.
+- `codes.md`: add any stable code table used by public parameters or models.
+- `error-codes.md`: add newly observed provider error codes.
+- `AGENTS.md` or this `SKILL.md`: add any repeated mistake discovered during implementation.
+
+## Repeated Mistakes To Avoid
+
+- Do not use `_type` for `tn_pubr_public_rest_area_api`; it uses `type`.
+- Do not convert `routeNo="0010"` or `unitCode="101"` to integers.
+- Do not treat `NO_DATA` as success unless `strict_no_data=False`.
+- Do not let raw API strings leak for stable code values that have enums.
+- Do not add endpoint paths from guesses without documenting that they are unverified.
+- Do not make tests depend on current public portal data.
+- Do not parse money or traffic values by hand at call sites. Keep conversion in
+  `_convert.py` or model parser helpers.
+- Do not expose a new dataclass until at least one realistic fixture or fake
+  response locks the expected field names.
+
+## Release Checklist
+
+Before pushing a release branch or first public commit:
+
+```bash
+python -m compileall kex_openapi tests
+python -m pytest
+python -m pytest --cov=kex_openapi --cov-fail-under=90
+python -m mypy kex_openapi
+```
+
+`ruff check .` is also expected when the environment has Ruff installed.
+
+## Verification
+
+Run at minimum:
+
+```bash
+python -m compileall kex_openapi tests
+python -m pytest
+```
+
+When type tooling is installed:
+
+```bash
+python -m mypy kex_openapi
+ruff check .
+```
