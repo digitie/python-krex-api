@@ -25,7 +25,8 @@ The public package import name is `kex_openapi`; the distribution name is
   `client.py`, `_http.py`, `_convert.py`, `codes.py`, `models.py`, `exceptions.py`.
 - Do not add live network calls to ordinary tests.
 - Do not commit API keys or generated caches.
-- Prefer dataclasses for public return models and `StrEnum` for stable code values.
+- Prefer immutable Pydantic models for public return models and `StrEnum` for
+  stable code values.
 - If an endpoint path is uncertain, expose it as `Page[dict]` first and document
   the uncertainty instead of pretending the schema is stable.
 
@@ -72,6 +73,8 @@ Never rely on HTTP status alone. Inspect body-level result codes.
 - Convert API dates only at the model boundary.
 - Convert numeric metrics (`speed`, `tollFee`, `trafficVol`) to `float` or `int`.
 - Convert Y/N fields to `bool | None`.
+- Keep public models based on `KexModel` so external callers can rely on
+  `model_dump()`, `model_validate()`, and `model_json_schema()`.
 - Expose standard WGS84 positions as `GeoPoint(lon, lat)`. Keep legacy
   `lat`/`lon` and `x`/`y` fields when already public, but prefer `coordinate`
   for new code.
@@ -111,7 +114,7 @@ Update documentation in the same change:
 - Do not make tests depend on current public portal data.
 - Do not parse money or traffic values by hand at call sites. Keep conversion in
   `_convert.py` or model parser helpers.
-- Do not expose a new dataclass until at least one realistic fixture or fake
+- Do not expose a new Pydantic model until at least one realistic fixture or fake
   response locks the expected field names.
 - Do not introduce ad-hoc `(lat, lon)` tuples in public models. Use
   `GeoPoint.latlon` only as a convenience alias.
@@ -119,7 +122,9 @@ Update documentation in the same change:
   endpoint-named top-level array such as `trafficIc`.
 - Do not use `payload.get("count") or ...` for counts. Real empty responses use
   `count=0`, and that must stay `0`.
-- Do not let API keys appear in dataclass repr output.
+- Do not let API keys appear in model repr output.
+- Do not use dataclass-only helpers such as `asdict()` or `__post_init__`;
+  use Pydantic validators and `model_dump()` instead.
 
 ## Release Checklist
 

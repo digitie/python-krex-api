@@ -2,7 +2,7 @@
 
 한국도로공사(Korea Expressway Corporation, KEX) 공공데이터 OpenAPI를 Python에서 편하게 쓰기 위한 비공식 클라이언트 라이브러리입니다.
 
-`kex-openapi`는 `data.ex.co.kr`와 `data.go.kr`에 흩어진 고속도로 교통량, 실시간 소통, 통행료, 영업소, 휴게소, 기준정보 API를 한 인터페이스로 감싸고, 응답을 Python dataclass와 enum으로 변환합니다.
+`kex-openapi`는 `data.ex.co.kr`와 `data.go.kr`에 흩어진 고속도로 교통량, 실시간 소통, 통행료, 영업소, 휴게소, 기준정보 API를 한 인터페이스로 감싸고, 응답을 Pydantic 모델과 enum으로 변환합니다.
 
 > 현재 저장소는 초기 구현 단계입니다. 세부 엔드포인트 명세는 [endpoints.md](endpoints.md), 지원 상태표는 [API_COVERAGE.md](API_COVERAGE.md), 코드표는 [codes.md](codes.md), 에러 매핑은 [error-codes.md](error-codes.md), 구현 규칙은 [SKILL.md](SKILL.md)와 [AGENTS.md](AGENTS.md)를 참고하세요.
 
@@ -13,6 +13,7 @@
 - **네임스페이스형 클라이언트**: `client.traffic.flow()`, `client.tollfee.between_tollgates()`처럼 문서의 API 범주와 같은 구조로 호출합니다.
 - **두 포털 동시 지원**: `data.ex.co.kr` 키(`KEX_EX_API_KEY`)와 `data.go.kr` 키(`KEX_GO_API_KEY`)를 분리해 사용합니다.
 - **Python 타입 변환**: 날짜, 숫자, Y/N 플래그, 코드값을 `date`, `int`, `float`, `bool`, `StrEnum`으로 변환합니다.
+- **Pydantic 응답 모델**: 공개 모델은 불변 `BaseModel` 기반이라 `model_dump()`, `model_validate()`, `model_json_schema()`를 외부 프로그램에서 바로 사용할 수 있습니다.
 - **명확한 예외 계층**: 인증, 한도 초과, 파라미터 오류, 데이터 없음, 서버 오류, 파싱 오류, 네트워크 오류를 구분합니다.
 - **본문 에러 코드 검사**: `data.go.kr`가 HTTP 200으로 반환하는 애플리케이션 에러도 놓치지 않습니다.
 - **네트워크 없는 테스트**: fake session 기반으로 URL/쿼리/파싱/에러 매핑을 검증합니다.
@@ -133,10 +134,10 @@ client = KexClient(
 | 교통 핵심 모델 | 부분 구현 | `TrafficByIc`, `TrafficFlow`, `Incident` |
 | 통행료 핵심 모델 | 구현됨 | `TollFee`, `Tollgate` |
 | 휴게소 핵심 모델 | 부분 구현 | 표준 휴게소, 음식가격 |
-| 시설/행정 상세 모델 | 원시 dict 반환 | 경로 검증 후 dataclass 승격 예정 |
+| 시설/행정 상세 모델 | 원시 dict 반환 | 경로 검증 후 Pydantic 모델 승격 예정 |
 | 라이브 호출 테스트 | 미포함 | 기본 테스트는 네트워크를 쓰지 않음 |
 
-검증되지 않은 포털 경로나 데이터셋은 무리해서 dataclass로 고정하지 않고 `Page[dict]`로 반환합니다. 실제 응답 fixture가 쌓이면 모델로 승격합니다.
+검증되지 않은 포털 경로나 데이터셋은 무리해서 모델로 고정하지 않고 `Page[dict]`로 반환합니다. 실제 응답 fixture가 쌓이면 Pydantic 모델로 승격합니다.
 
 전체 지원/미지원/실서버 검증 상태는 [API_COVERAGE.md](API_COVERAGE.md)를 기준으로 관리합니다.
 
@@ -164,6 +165,17 @@ page.raw          # 원본 응답 dict | None
 ```python
 for flow in page:
     print(flow.conzone_name, flow.speed)
+```
+
+공개 응답 모델은 Pydantic v2 모델입니다. 라이브러리 밖에서는 dict 변환, JSON schema 생성, 입력 검증을 별도 래퍼 없이 사용할 수 있습니다.
+
+```python
+from kex_openapi import TrafficFlow
+
+flow = page.first
+if flow:
+    flow.model_dump()
+    TrafficFlow.model_json_schema()
 ```
 
 ---
@@ -313,7 +325,7 @@ ruff check .
 | `kex_openapi._http` | HTTP 호출, retry, 포털별 envelope 정규화, 에러 매핑 |
 | `kex_openapi._convert` | 문자열 기반 API 응답을 Python 타입으로 변환 |
 | `kex_openapi.codes` | 안정적인 코드값 enum과 라벨 |
-| `kex_openapi.models` | public dataclass 반환 모델 |
+| `kex_openapi.models` | public Pydantic 반환 모델 |
 | `kex_openapi.exceptions` | 예외 계층 |
 
 새 기능을 넣을 때는 보통 `codes.py`/`models.py`를 먼저 보강하고, `client.py`에서 메서드를 연결한 뒤, `tests/`에서 fake 응답으로 쿼리와 변환을 잠급니다.

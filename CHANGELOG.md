@@ -52,6 +52,8 @@ Initial package scaffold and first implementation pass.
   and `is_empty`.
 - Standard `coordinate: GeoPoint | None` fields for rest areas and tollgates
   while preserving existing `lat`/`lon` and `x`/`y` fields.
+- Pydantic v2 public response models with frozen instances, validation,
+  `model_dump()`, and JSON schema support.
 
 ### Fixed
 

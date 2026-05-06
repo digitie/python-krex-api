@@ -1,11 +1,12 @@
-"""Public dataclasses returned by kex-openapi."""
+"""Public Pydantic models returned by kex-openapi."""
 
 from __future__ import annotations
 
 from collections.abc import Iterator
-from dataclasses import dataclass
 from datetime import date
 from typing import Any, Generic, TypeVar
+
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from .codes import (
     CarType,
@@ -20,15 +21,20 @@ from .codes import (
 T = TypeVar("T")
 
 
-@dataclass(frozen=True, slots=True)
-class Page(Generic[T]):
+class KexModel(BaseModel):
+    """Base class for immutable public response models."""
+
+    model_config = ConfigDict(frozen=True, use_enum_values=False)
+
+
+class Page(KexModel, Generic[T]):
     items: tuple[T, ...]
     page_no: int | None = None
     num_of_rows: int | None = None
     total_count: int | None = None
     raw: dict[str, Any] | None = None
 
-    def __iter__(self) -> Iterator[T]:
+    def __iter__(self) -> Iterator[T]:  # type: ignore[override]
         return iter(self.items)
 
     def __len__(self) -> int:
@@ -46,8 +52,7 @@ class Page(Generic[T]):
         return not self.items
 
 
-@dataclass(frozen=True, slots=True)
-class GeoPoint:
+class GeoPoint(KexModel):
     """Standard WGS84 longitude/latitude point.
 
     `lon` comes first to match GeoJSON and most GIS APIs. The `latlon` property
@@ -57,11 +62,19 @@ class GeoPoint:
     lon: float
     lat: float
 
-    def __post_init__(self) -> None:
-        if not -180 <= self.lon <= 180:
+    @field_validator("lon")
+    @classmethod
+    def _validate_lon(cls, value: float) -> float:
+        if not -180 <= value <= 180:
             raise ValueError("lon must be between -180 and 180")
-        if not -90 <= self.lat <= 90:
+        return value
+
+    @field_validator("lat")
+    @classmethod
+    def _validate_lat(cls, value: float) -> float:
+        if not -90 <= value <= 90:
             raise ValueError("lat must be between -90 and 90")
+        return value
 
     @property
     def longitude(self) -> float:
@@ -83,16 +96,13 @@ class GeoPoint:
         return self.lonlat
 
 
-@dataclass(frozen=True, slots=True)
-class RawCoordinate:
+class RawCoordinate(KexModel):
     x: float
     y: float
     system: CoordinateSystem = CoordinateSystem.UNKNOWN
 
 
-
-@dataclass(frozen=True, slots=True)
-class TrafficByIc:
+class TrafficByIc(KexModel):
     collected_date: date | None
     collected_time: str | None
     unit_code: str
@@ -104,8 +114,7 @@ class TrafficByIc:
     raw: dict[str, Any]
 
 
-@dataclass(frozen=True, slots=True)
-class TrafficFlow:
+class TrafficFlow(KexModel):
     conzone_id: str | None
     conzone_name: str | None
     route_no: str | None
@@ -118,8 +127,7 @@ class TrafficFlow:
     raw: dict[str, Any]
 
 
-@dataclass(frozen=True, slots=True)
-class Incident:
+class Incident(KexModel):
     route_no: str | None
     route_name: str | None
     direction: Direction | None
@@ -130,8 +138,7 @@ class Incident:
     raw: dict[str, Any]
 
 
-@dataclass(frozen=True, slots=True)
-class TollFee:
+class TollFee(KexModel):
     start_unit_code: str
     start_unit_name: str | None
     end_unit_code: str
@@ -147,8 +154,7 @@ class TollFee:
     raw: dict[str, Any]
 
 
-@dataclass(frozen=True, slots=True)
-class Tollgate:
+class Tollgate(KexModel):
     unit_code: str
     unit_name: str
     route_no: str | None
@@ -163,8 +169,7 @@ class Tollgate:
     raw_coordinate: RawCoordinate | None = None
 
 
-@dataclass(frozen=True, slots=True)
-class RestArea:
+class RestArea(KexModel):
     name: str
     route_name: str | None
     direction: str | None
@@ -179,8 +184,7 @@ class RestArea:
     coordinate: GeoPoint | None = None
 
 
-@dataclass(frozen=True, slots=True)
-class FoodPrice:
+class FoodPrice(KexModel):
     service_area_code: str | None
     service_area_name: str | None
     store_code: str | None
@@ -192,8 +196,7 @@ class FoodPrice:
     raw: dict[str, Any]
 
 
-@dataclass(frozen=True, slots=True)
-class Route:
+class Route(KexModel):
     route_no: str
     route_name: str
     short_name: str | None = None

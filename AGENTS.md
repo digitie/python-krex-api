@@ -7,7 +7,7 @@ This repository follows the same working shape as `pykma` and `pyopinet`.
 - Do not commit API keys. Use `KEX_EX_API_KEY` for `data.ex.co.kr` and
   `KEX_GO_API_KEY` for `data.go.kr`.
 - Unit tests must not call the network. Use fake sessions or fixtures.
-- Keep public return values typed dataclasses or enum values, not raw strings,
+- Keep public return values typed Pydantic models or enum values, not raw strings,
   whenever the field has a stable meaning.
 - Use `GeoPoint(lon, lat)` for public WGS84 coordinates and expose raw
   ambiguous coordinates separately.
@@ -26,7 +26,7 @@ This repository follows the same working shape as `pykma` and `pyopinet`.
 - `kex_openapi._http`: transport, retries, API envelope/error mapping.
 - `kex_openapi._convert`: small conversion helpers at the response boundary.
 - `kex_openapi.codes`: enums and code labels.
-- `kex_openapi.models`: public dataclass return models.
+- `kex_openapi.models`: public Pydantic return models.
 - `kex_openapi.client`: high-level endpoint namespaces and parsing.
 - `API_COVERAGE.md`: source-of-truth for implemented vs live-verified API
   status.
