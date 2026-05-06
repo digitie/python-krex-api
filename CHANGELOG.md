@@ -42,6 +42,13 @@ Initial package scaffold and first implementation pass.
 ### Added
 
 - Live `data.ex.co.kr` tests gated by `KEX_LIVE=1` and local `KEX_EX_API_KEY`.
+- `KexCode` enum base with `values()`, `labels()`, `choices()`, and
+  `from_label()` helpers for external forms and validators.
+- `CoordinateSystem`, `GeoPoint`, and `RawCoordinate` public types.
+- `Page` sequence-like helpers: iteration, `len(page)`, truthiness, `first`,
+  and `is_empty`.
+- Standard `coordinate: GeoPoint | None` fields for rest areas and tollgates
+  while preserving existing `lat`/`lon` and `x`/`y` fields.
 
 ### Fixed
 

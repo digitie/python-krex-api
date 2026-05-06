@@ -71,6 +71,11 @@ Never rely on HTTP status alone. Inspect body-level result codes.
 - Convert API dates only at the model boundary.
 - Convert numeric metrics (`speed`, `tollFee`, `trafficVol`) to `float` or `int`.
 - Convert Y/N fields to `bool | None`.
+- Expose standard WGS84 positions as `GeoPoint(lon, lat)`. Keep legacy
+  `lat`/`lon` and `x`/`y` fields when already public, but prefer `coordinate`
+  for new code.
+- Preserve ambiguous raw coordinates as `RawCoordinate` with a
+  `CoordinateSystem`.
 - Normalize single-item `dict` and multi-item `list[dict]` to the same internal list shape.
 
 ## Tests Required For New Endpoints
@@ -106,6 +111,8 @@ Update documentation in the same change:
   `_convert.py` or model parser helpers.
 - Do not expose a new dataclass until at least one realistic fixture or fake
   response locks the expected field names.
+- Do not introduce ad-hoc `(lat, lon)` tuples in public models. Use
+  `GeoPoint.latlon` only as a convenience alias.
 - Do not assume `data.ex.co.kr` always uses `list`; real responses can use an
   endpoint-named top-level array such as `trafficIc`.
 - Do not use `payload.get("count") or ...` for counts. Real empty responses use

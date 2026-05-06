@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 from collections.abc import Callable
 from dataclasses import dataclass
-from enum import StrEnum
 from typing import Any, TypeVar
 
 from ._convert import (
@@ -20,9 +19,11 @@ from .codes import (
     ROUTE_NAMES,
     CarType,
     CongestionLevel,
+    CoordinateSystem,
     Direction,
     DiscountType,
     IOType,
+    KexCode,
     RoadOperator,
     TCSType,
     TimeUnit,
@@ -31,8 +32,10 @@ from .codes import (
 from .exceptions import KexInvalidParameterError, KexNotFoundError, KexParseError
 from .models import (
     FoodPrice,
+    GeoPoint,
     Incident,
     Page,
+    RawCoordinate,
     RestArea,
     Route,
     TollFee,
@@ -42,7 +45,7 @@ from .models import (
 )
 
 T = TypeVar("T")
-E = TypeVar("E", bound=StrEnum)
+E = TypeVar("E", bound=KexCode)
 
 
 class KexClient:
@@ -437,33 +440,44 @@ def _toll_fee(row: dict[str, Any]) -> TollFee:
 
 
 def _tollgate(row: dict[str, Any]) -> Tollgate:
+    x = to_float_or_none(_get(row, "xValue", "x"))
+    y = to_float_or_none(_get(row, "yValue", "y"))
+    raw_coordinate = _raw_coordinate(x, y)
     return Tollgate(
         unit_code=str(_required(row, "unitCode")),
         unit_name=str(_required(row, "unitName")),
         route_no=strip_or_none(_get(row, "routeNo")),
         route_name=strip_or_none(_get(row, "routeName")),
         ex_div_code=strip_or_none(_get(row, "exDivCode")),
-        x=to_float_or_none(_get(row, "xValue", "x")),
-        y=to_float_or_none(_get(row, "yValue", "y")),
+        x=x,
+        y=y,
         head_office_code=strip_or_none(_get(row, "headOfficeCode")),
         branch_office_code=strip_or_none(_get(row, "branchOfficeCode")),
         raw=row,
+        coordinate=_geo_point_from_row(row) or _wgs84_from_xy(x, y),
+        raw_coordinate=raw_coordinate,
     )
 
 
 def _rest_area(row: dict[str, Any]) -> RestArea:
+    coordinate = _geo_point_from_row(row)
     return RestArea(
         name=str(_required(row, "restAreaNm", "serviceAreaName")),
         route_name=strip_or_none(_get(row, "routeNm", "routeName")),
         direction=strip_or_none(_get(row, "directionContent", "direction")),
-        lat=to_float_or_none(_get(row, "lcLatitude", "latitude")),
-        lon=to_float_or_none(_get(row, "lcLongitude", "longitude")),
+        lat=coordinate.lat if coordinate else to_float_or_none(_get(row, "lcLatitude", "latitude")),
+        lon=(
+            coordinate.lon
+            if coordinate
+            else to_float_or_none(_get(row, "lcLongitude", "longitude"))
+        ),
         has_gas_station=to_bool_yn(_get(row, "gasStnYn")),
         has_lpg_station=to_bool_yn(_get(row, "lpgStnYn")),
         has_ev_charger=to_bool_yn(_get(row, "evChargYn")),
         phone_number=strip_or_none(_get(row, "phoneNumber", "tel")),
         reference_date=to_date_or_none(_get(row, "referenceDate")),
         raw=row,
+        coordinate=coordinate,
     )
 
 
@@ -516,3 +530,36 @@ def _required(row: dict[str, Any], *names: str) -> Any:
         joined = "/".join(names)
         raise ValueError(f"{joined} is required")
     return value
+
+
+def _geo_point_from_row(row: dict[str, Any]) -> GeoPoint | None:
+    lon = to_float_or_none(
+        _get(row, "lon", "longitude", "lng", "lcLongitude", "경도", "xcoord")
+    )
+    lat = to_float_or_none(_get(row, "lat", "latitude", "lcLatitude", "위도", "ycoord"))
+    if lon is None or lat is None:
+        return None
+    return _wgs84_from_lon_lat(lon, lat)
+
+
+def _wgs84_from_xy(x: float | None, y: float | None) -> GeoPoint | None:
+    if x is None or y is None:
+        return None
+    return _wgs84_from_lon_lat(x, y)
+
+
+def _wgs84_from_lon_lat(lon: float, lat: float) -> GeoPoint | None:
+    if 124 <= lon <= 132 and 33 <= lat <= 39:
+        return GeoPoint(lon=lon, lat=lat)
+    return None
+
+
+def _raw_coordinate(x: float | None, y: float | None) -> RawCoordinate | None:
+    if x is None or y is None:
+        return None
+    system = (
+        CoordinateSystem.WGS84
+        if _wgs84_from_xy(x, y) is not None
+        else CoordinateSystem.UNKNOWN
+    )
+    return RawCoordinate(x=x, y=y, system=system)

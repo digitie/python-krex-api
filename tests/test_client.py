@@ -8,6 +8,7 @@ import pytest
 from kex_openapi import (
     CarType,
     CongestionLevel,
+    CoordinateSystem,
     Direction,
     KexClient,
     KexInvalidParameterError,
@@ -188,6 +189,10 @@ def test_tollgate_list_preserves_code_strings() -> None:
 
     assert tollgate.unit_code == "007"
     assert tollgate.x == pytest.approx(127.1)
+    assert tollgate.coordinate is not None
+    assert tollgate.coordinate.lonlat == pytest.approx((127.1, 37.2))
+    assert tollgate.raw_coordinate is not None
+    assert tollgate.raw_coordinate.system is CoordinateSystem.WGS84
 
 
 def test_restarea_standard_data_uses_go_key_and_parses_bool() -> None:
@@ -221,6 +226,8 @@ def test_restarea_standard_data_uses_go_key_and_parses_bool() -> None:
     assert rest_area.has_gas_station is True
     assert rest_area.has_lpg_station is False
     assert rest_area.reference_date == date(2026, 4, 30)
+    assert rest_area.coordinate is not None
+    assert rest_area.coordinate.lonlat == pytest.approx((127.104, 37.332))
 
 
 def test_food_price_parses_recommend_flag() -> None:

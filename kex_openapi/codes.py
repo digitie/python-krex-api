@@ -7,7 +7,40 @@ from typing import TypeVar
 
 from .exceptions import KexInvalidParameterError
 
-E = TypeVar("E", bound=StrEnum)
+E = TypeVar("E", bound="KexCode")
+
+
+class KexCode(StrEnum):
+    """Base enum for stable KEX API codes.
+
+    External applications can use `values()`, `labels()`, and `choices()` to
+    build forms, validators, or API documentation without duplicating tables.
+    """
+
+    @property
+    def label(self) -> str:
+        return self._label_map().get(self.value, self.value)
+
+    @classmethod
+    def values(cls) -> tuple[str, ...]:
+        return tuple(item.value for item in cls)
+
+    @classmethod
+    def labels(cls) -> dict[str, str]:
+        return dict(cls._label_map())
+
+    @classmethod
+    def choices(cls) -> tuple[tuple[str, str], ...]:
+        labels = cls._label_map()
+        return tuple((item.value, labels.get(item.value, item.value)) for item in cls)
+
+    @classmethod
+    def from_label(cls: type[E], label: str) -> E:
+        return _from_label(cls, cls._label_map(), label)
+
+    @classmethod
+    def _label_map(cls) -> dict[str, str]:
+        return {}
 
 
 def coerce_code(enum_type: type[E], value: E | str, field: str) -> str:
@@ -20,7 +53,19 @@ def coerce_code(enum_type: type[E], value: E | str, field: str) -> str:
         raise KexInvalidParameterError(f"{field} must be one of: {allowed}") from exc
 
 
-class CarType(StrEnum):
+class CoordinateSystem(KexCode):
+    """Coordinate systems exposed by KEX-related APIs."""
+
+    WGS84 = "WGS84"
+    KATEC = "KATEC"
+    UNKNOWN = "UNKNOWN"
+
+    @classmethod
+    def _label_map(cls) -> dict[str, str]:
+        return _COORDINATE_SYSTEM_LABELS
+
+
+class CarType(KexCode):
     LIGHT = "1"
     MEDIUM = "2"
     LARGE_3AXLE = "3"
@@ -28,26 +73,22 @@ class CarType(StrEnum):
     LARGE_5AXLE = "5"
     LIGHT_DISCOUNT = "6"
 
-    @property
-    def label(self) -> str:
-        return _CAR_TYPE_LABELS[self.value]
-
     @classmethod
-    def from_label(cls, label: str) -> CarType:
-        return _from_label(cls, _CAR_TYPE_LABELS, label)
+    def _label_map(cls) -> dict[str, str]:
+        return _CAR_TYPE_LABELS
 
 
-class TCSType(StrEnum):
+class TCSType(KexCode):
     ALL = "0"
     TCS = "1"
     HIPASS = "2"
 
-    @property
-    def label(self) -> str:
-        return _TCS_TYPE_LABELS[self.value]
+    @classmethod
+    def _label_map(cls) -> dict[str, str]:
+        return _TCS_TYPE_LABELS
 
 
-class RoadOperator(StrEnum):
+class RoadOperator(KexCode):
     KEC = "00"
     PRIV_INCHEON_AIRPORT = "01"
     PRIV_CHEONAN_NONSAN = "02"
@@ -55,30 +96,30 @@ class RoadOperator(StrEnum):
     PRIV_SEOUL_CHUNCHEON = "11"
     PRIV_GURIPOCHEON = "18"
 
-    @property
-    def label(self) -> str:
-        return _ROAD_OPERATOR_LABELS.get(self.value, self.value)
+    @classmethod
+    def _label_map(cls) -> dict[str, str]:
+        return _ROAD_OPERATOR_LABELS
 
 
-class IOType(StrEnum):
+class IOType(KexCode):
     IN = "0"
     OUT = "1"
 
-    @property
-    def label(self) -> str:
-        return _IO_TYPE_LABELS[self.value]
+    @classmethod
+    def _label_map(cls) -> dict[str, str]:
+        return _IO_TYPE_LABELS
 
 
-class TimeUnit(StrEnum):
+class TimeUnit(KexCode):
     HOUR = "1"
     MIN_15 = "2"
 
-    @property
-    def label(self) -> str:
-        return _TIME_UNIT_LABELS[self.value]
+    @classmethod
+    def _label_map(cls) -> dict[str, str]:
+        return _TIME_UNIT_LABELS
 
 
-class Direction(StrEnum):
+class Direction(KexCode):
     UP = "0"
     DOWN = "1"
     EAST = "E"
@@ -86,23 +127,23 @@ class Direction(StrEnum):
     SOUTH = "S"
     NORTH = "N"
 
-    @property
-    def label(self) -> str:
-        return _DIRECTION_LABELS[self.value]
+    @classmethod
+    def _label_map(cls) -> dict[str, str]:
+        return _DIRECTION_LABELS
 
 
-class CongestionLevel(StrEnum):
+class CongestionLevel(KexCode):
     SMOOTH = "1"
     SLOW = "2"
     DELAY = "3"
     STOP = "4"
 
-    @property
-    def label(self) -> str:
-        return _CONGESTION_LABELS[self.value]
+    @classmethod
+    def _label_map(cls) -> dict[str, str]:
+        return _CONGESTION_LABELS
 
 
-class DiscountType(StrEnum):
+class DiscountType(KexCode):
     NONE = "0"
     NIGHT = "1"
     RUSH_DISCOUNT = "2"
@@ -110,11 +151,16 @@ class DiscountType(StrEnum):
     HYBRID = "4"
     DISABLED = "5"
 
-    @property
-    def label(self) -> str:
-        return _DISCOUNT_LABELS[self.value]
+    @classmethod
+    def _label_map(cls) -> dict[str, str]:
+        return _DISCOUNT_LABELS
 
 
+_COORDINATE_SYSTEM_LABELS = {
+    "WGS84": "WGS84 위경도",
+    "KATEC": "KATEC 평면직각좌표",
+    "UNKNOWN": "알 수 없음",
+}
 _CAR_TYPE_LABELS = {
     "1": "1종",
     "2": "2종",

@@ -147,13 +147,72 @@ client = KexClient(
 page = client.traffic.flow(route_no="0010")
 
 page.items        # tuple[TrafficFlow, ...]
+page.first        # TrafficFlow | None
+len(page)         # 현재 페이지 item 수
+bool(page)        # item이 있으면 True
 page.page_no      # int | None
 page.num_of_rows  # int | None
 page.total_count  # int | None
 page.raw          # 원본 응답 dict | None
 ```
 
-`Page.items`는 tuple입니다. 호출 이후 결과가 의도치 않게 바뀌는 일을 줄이기 위한 선택입니다.
+`Page`는 바로 순회할 수 있고, `Page.items`는 tuple입니다. 호출 이후 결과가 의도치 않게 바뀌는 일을 줄이기 위한 선택입니다.
+
+```python
+for flow in page:
+    print(flow.conzone_name, flow.speed)
+```
+
+---
+
+## Enum과 타입 표준화
+
+코드값은 `StrEnum` 기반 enum으로 제공합니다. 문자열처럼 API 파라미터에 쓸 수 있으면서, 라벨과 선택지를 함께 제공합니다.
+
+```python
+from kex_openapi import CarType, TCSType
+
+CarType.LIGHT.value      # "1"
+CarType.LIGHT.label      # "1종"
+CarType.from_label("1종")
+CarType.choices()        # (("1", "1종"), ...)
+CarType.values()         # ("1", "2", ...)
+
+client.traffic.by_ic(
+    ex_div_code="00",
+    unit_code="101",
+    in_out="0",
+    time_unit="1",
+    tcs_type=TCSType.HIPASS,
+    car_type=CarType.LIGHT,
+)
+```
+
+외부 프로그램의 폼, CLI, OpenAPI schema, Pydantic validator에서는 `choices()`나 `values()`를 그대로 사용할 수 있습니다.
+
+---
+
+## 위경도 표준화
+
+라이브러리에서 표준 위경도는 `GeoPoint(lon, lat)`로 표현합니다. `lon`이 먼저 오는 순서는 GeoJSON과 대부분의 GIS API에 맞춘 것입니다.
+
+```python
+rest_area = client.restarea.list_all().first
+if rest_area and rest_area.coordinate:
+    rest_area.coordinate.lonlat              # (lon, lat)
+    rest_area.coordinate.latlon              # (lat, lon)
+    rest_area.coordinate.as_geojson_position()  # (lon, lat)
+```
+
+기존 호환성을 위해 `RestArea.lat`/`RestArea.lon`, `Tollgate.x`/`Tollgate.y`도 유지합니다. 다만 신규 코드에서는 가능한 한 `coordinate: GeoPoint | None`을 우선 사용하세요.
+
+영업소처럼 원본 좌표계가 불명확한 데이터는 `raw_coordinate`도 함께 제공합니다.
+
+```python
+tollgate = client.tollfee.tollgate_list().first
+if tollgate and tollgate.raw_coordinate:
+    print(tollgate.raw_coordinate.x, tollgate.raw_coordinate.y, tollgate.raw_coordinate.system)
+```
 
 ---
 
@@ -219,6 +278,7 @@ except KexServerError:
 - `data.ex.co.kr` 응답은 `list` 대신 endpoint 이름(`trafficIc` 등)을 top-level 배열 키로 사용할 수 있습니다.
 - 표준데이터 API는 `_type`이 아니라 `type=json`을 쓰는 경우가 있습니다.
 - 영업소/노선/기관 코드는 선행 0이 의미 있으므로 `int`로 바꾸지 않습니다.
+- 외부 표준 좌표는 `GeoPoint(lon, lat)`입니다. UI용 `(lat, lon)`은 `point.latlon`을 사용하세요.
 - 응답의 `items.item`, `list`, `data`는 단일 `dict` 또는 `list[dict]` 양쪽을 처리합니다.
 - `count=0`은 `None`이 아니라 정수 `0`으로 보존해야 합니다.
 - `NO_DATA`는 기본적으로 `KexNotFoundError`입니다. 빈 결과로 받고 싶으면 `KexClient(strict_no_data=False)`를 사용합니다.

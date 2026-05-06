@@ -2,11 +2,20 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import date
 from typing import Any, Generic, TypeVar
 
-from .codes import CarType, CongestionLevel, Direction, DiscountType, IOType, TCSType
+from .codes import (
+    CarType,
+    CongestionLevel,
+    CoordinateSystem,
+    Direction,
+    DiscountType,
+    IOType,
+    TCSType,
+)
 
 T = TypeVar("T")
 
@@ -18,6 +27,68 @@ class Page(Generic[T]):
     num_of_rows: int | None = None
     total_count: int | None = None
     raw: dict[str, Any] | None = None
+
+    def __iter__(self) -> Iterator[T]:
+        return iter(self.items)
+
+    def __len__(self) -> int:
+        return len(self.items)
+
+    def __bool__(self) -> bool:
+        return bool(self.items)
+
+    @property
+    def first(self) -> T | None:
+        return self.items[0] if self.items else None
+
+    @property
+    def is_empty(self) -> bool:
+        return not self.items
+
+
+@dataclass(frozen=True, slots=True)
+class GeoPoint:
+    """Standard WGS84 longitude/latitude point.
+
+    `lon` comes first to match GeoJSON and most GIS APIs. The `latlon` property
+    is available for UI libraries that expect `(lat, lon)`.
+    """
+
+    lon: float
+    lat: float
+
+    def __post_init__(self) -> None:
+        if not -180 <= self.lon <= 180:
+            raise ValueError("lon must be between -180 and 180")
+        if not -90 <= self.lat <= 90:
+            raise ValueError("lat must be between -90 and 90")
+
+    @property
+    def longitude(self) -> float:
+        return self.lon
+
+    @property
+    def latitude(self) -> float:
+        return self.lat
+
+    @property
+    def lonlat(self) -> tuple[float, float]:
+        return (self.lon, self.lat)
+
+    @property
+    def latlon(self) -> tuple[float, float]:
+        return (self.lat, self.lon)
+
+    def as_geojson_position(self) -> tuple[float, float]:
+        return self.lonlat
+
+
+@dataclass(frozen=True, slots=True)
+class RawCoordinate:
+    x: float
+    y: float
+    system: CoordinateSystem = CoordinateSystem.UNKNOWN
+
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,6 +159,8 @@ class Tollgate:
     head_office_code: str | None
     branch_office_code: str | None
     raw: dict[str, Any]
+    coordinate: GeoPoint | None = None
+    raw_coordinate: RawCoordinate | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,6 +176,7 @@ class RestArea:
     phone_number: str | None
     reference_date: date | None
     raw: dict[str, Any]
+    coordinate: GeoPoint | None = None
 
 
 @dataclass(frozen=True, slots=True)
