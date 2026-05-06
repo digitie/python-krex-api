@@ -44,6 +44,9 @@ Initial package scaffold and first implementation pass.
 - Live `data.ex.co.kr` tests gated by `KEX_LIVE=1` and local `KEX_EX_API_KEY`.
 - `KexCode` enum base with `values()`, `labels()`, `choices()`, and
   `from_label()` helpers for external forms and validators.
+- `restarea.disabled_facility()` and `restarea.bus_transit()` raw wrappers.
+- `API_COVERAGE.md` to track documented, implemented, typed, raw, and
+  live-verified API status.
 - `CoordinateSystem`, `GeoPoint`, and `RawCoordinate` public types.
 - `Page` sequence-like helpers: iteration, `len(page)`, truthiness, `first`,
   and `is_empty`.

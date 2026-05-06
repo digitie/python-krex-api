@@ -302,6 +302,12 @@ class RestareaNamespace:
     def restroom(self, **params: Any) -> Page[dict[str, Any]]:
         return self._client._page_ex("/openapi/restinfo/restRestroom", params, dict)
 
+    def disabled_facility(self, **params: Any) -> Page[dict[str, Any]]:
+        return self._client._page_ex("/openapi/restinfo/restDisabled", params, dict)
+
+    def bus_transit(self, **params: Any) -> Page[dict[str, Any]]:
+        return self._client._page_ex("/openapi/restinfo/restBus", params, dict)
+
 
 @dataclass(frozen=True, slots=True)
 class FacilityNamespace:

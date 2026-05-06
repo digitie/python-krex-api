@@ -20,6 +20,7 @@ The public package import name is `kex_openapi`; the distribution name is
 ## Repository Rules
 
 - Read `endpoints.md`, `codes.md`, and `error-codes.md` before changing endpoint behavior.
+- Read `API_COVERAGE.md` before claiming an API is supported or live-verified.
 - Keep the implementation shape aligned with `pykma` and `pyopinet`:
   `client.py`, `_http.py`, `_convert.py`, `codes.py`, `models.py`, `exceptions.py`.
 - Do not add live network calls to ordinary tests.
@@ -95,6 +96,7 @@ Update documentation in the same change:
 
 - `README.md`: add user-facing usage only when the endpoint is meant to be public.
 - `endpoints.md`: add source portal, path, method name, parameters, and known response fields.
+- `API_COVERAGE.md`: update implementation state and live verification status.
 - `codes.md`: add any stable code table used by public parameters or models.
 - `error-codes.md`: add newly observed provider error codes.
 - `AGENTS.md` or this `SKILL.md`: add any repeated mistake discovered during implementation.

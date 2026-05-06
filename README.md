@@ -4,7 +4,7 @@
 
 `kex-openapi`는 `data.ex.co.kr`와 `data.go.kr`에 흩어진 고속도로 교통량, 실시간 소통, 통행료, 영업소, 휴게소, 기준정보 API를 한 인터페이스로 감싸고, 응답을 Python dataclass와 enum으로 변환합니다.
 
-> 현재 저장소는 초기 구현 단계입니다. 세부 엔드포인트 명세는 [endpoints.md](endpoints.md), 코드표는 [codes.md](codes.md), 에러 매핑은 [error-codes.md](error-codes.md), 구현 규칙은 [SKILL.md](SKILL.md)와 [AGENTS.md](AGENTS.md)를 참고하세요.
+> 현재 저장소는 초기 구현 단계입니다. 세부 엔드포인트 명세는 [endpoints.md](endpoints.md), 지원 상태표는 [API_COVERAGE.md](API_COVERAGE.md), 코드표는 [codes.md](codes.md), 에러 매핑은 [error-codes.md](error-codes.md), 구현 규칙은 [SKILL.md](SKILL.md)와 [AGENTS.md](AGENTS.md)를 참고하세요.
 
 ---
 
@@ -109,6 +109,7 @@ client = KexClient(
 | 휴게소 | `restarea.list_all()` | `data.go.kr` | `Page[RestArea]` |
 | 휴게소 | `restarea.food_price()` | `data.ex.co.kr` | `Page[FoodPrice]` |
 | 휴게소 | `restarea.parking()`, `wifi()`, `restroom()` | `data.ex.co.kr` | `Page[dict]` |
+| 휴게소 | `restarea.disabled_facility()`, `bus_transit()` | `data.ex.co.kr` | `Page[dict]` |
 | 시설 | `facility.tollgate_info()` | `data.go.kr` | `Page[dict]` |
 | 시설 | `facility.drowsy_shelter()` | `data.ex.co.kr` | `Page[dict]` |
 | 시설 | `facility.shoulder_lane()` | `data.go.kr` | `Page[dict]` |
@@ -136,6 +137,8 @@ client = KexClient(
 | 라이브 호출 테스트 | 미포함 | 기본 테스트는 네트워크를 쓰지 않음 |
 
 검증되지 않은 포털 경로나 데이터셋은 무리해서 dataclass로 고정하지 않고 `Page[dict]`로 반환합니다. 실제 응답 fixture가 쌓이면 모델로 승격합니다.
+
+전체 지원/미지원/실서버 검증 상태는 [API_COVERAGE.md](API_COVERAGE.md)를 기준으로 관리합니다.
 
 ---
 

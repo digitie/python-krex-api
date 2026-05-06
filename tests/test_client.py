@@ -328,6 +328,12 @@ def test_raw_and_generic_namespaces_build_expected_urls() -> None:
     client.restarea.restroom()
     assert session.last_url.endswith("/openapi/restinfo/restRestroom")
 
+    client.restarea.disabled_facility()
+    assert session.last_url.endswith("/openapi/restinfo/restDisabled")
+
+    client.restarea.bus_transit()
+    assert session.last_url.endswith("/openapi/restinfo/restBus")
+
     client.facility.drowsy_shelter()
     assert session.last_url.endswith("/openapi/restinfo/drowsyShelter")
 

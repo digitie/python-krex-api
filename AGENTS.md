@@ -28,6 +28,8 @@ This repository follows the same working shape as `pykma` and `pyopinet`.
 - `kex_openapi.codes`: enums and code labels.
 - `kex_openapi.models`: public dataclass return models.
 - `kex_openapi.client`: high-level endpoint namespaces and parsing.
+- `API_COVERAGE.md`: source-of-truth for implemented vs live-verified API
+  status.
 
 ## Test Bar
 
@@ -46,6 +48,7 @@ When behavior changes, update the matching document in the same patch:
 
 - User-facing usage changes: `README.md`.
 - Endpoint parameters or response fields: `endpoints.md`.
+- Coverage/support status: `API_COVERAGE.md`.
 - Code enum changes: `codes.md`.
 - Exception or provider error mapping changes: `error-codes.md`.
 - Agent workflow or repeated mistakes: `SKILL.md` and this file.
