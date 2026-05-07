@@ -75,6 +75,11 @@ print(fees.items[0].toll_fee)
 # 휴게소 표준데이터(data.go.kr)
 areas = client.restarea.list_all(route_name="경부고속도로")
 print(areas.items[0].name, areas.items[0].has_ev_charger)
+
+# 노선별 휴게시설과 휴게소 주유소 가격(data.ex.co.kr)
+facilities = client.restarea.route_facilities(route_code="0010")
+fuel_prices = client.restarea.fuel_prices(service_area_code=facilities.items[0].service_area_code)
+print(facilities.items[0].service_area_name, fuel_prices.items[0].gasoline_price)
 ```
 
 ### 키를 직접 넘기는 방식
@@ -107,7 +112,10 @@ client = KexClient(
 | 교통 | `traffic.vds_raw()`, `traffic.avc_raw()` | `data.ex.co.kr` | `Page[dict]` |
 | 통행료 | `tollfee.between_tollgates()` | `data.ex.co.kr` | `Page[TollFee]` |
 | 통행료 | `tollfee.tollgate_list()` | `data.ex.co.kr` | `Page[Tollgate]` |
+| 휴게소 | `restarea.route_facilities()` | `data.ex.co.kr` | `Page[RestAreaRouteFacility]` |
 | 휴게소 | `restarea.list_all()` | `data.go.kr` | `Page[RestArea]` |
+| 휴게소 | `restarea.fuel_prices()` | `data.ex.co.kr` | `Page[RestAreaFuelPrice]` |
+| 휴게소 | `restarea.convenience_facilities()` | `data.ex.co.kr` | `Page[dict]` |
 | 휴게소 | `restarea.food_price()` | `data.ex.co.kr` | `Page[FoodPrice]` |
 | 휴게소 | `restarea.parking()`, `wifi()`, `restroom()` | `data.ex.co.kr` | `Page[dict]` |
 | 휴게소 | `restarea.disabled_facility()`, `bus_transit()` | `data.ex.co.kr` | `Page[dict]` |
@@ -133,7 +141,7 @@ client = KexClient(
 | `data.go.kr` envelope | 구현됨 | `response.header.resultCode` 검사 |
 | 교통 핵심 모델 | 부분 구현 | `TrafficByIc`, `TrafficFlow`, `Incident` |
 | 통행료 핵심 모델 | 구현됨 | `TollFee`, `Tollgate` |
-| 휴게소 핵심 모델 | 부분 구현 | 표준 휴게소, 음식가격 |
+| 휴게소 핵심 모델 | 부분 구현 | 노선별 휴게시설, 표준 휴게소, 주유소 가격, 음식가격 |
 | 시설/행정 상세 모델 | 원시 dict 반환 | 경로 검증 후 Pydantic 모델 승격 예정 |
 | 라이브 호출 테스트 | 미포함 | 기본 테스트는 네트워크를 쓰지 않음 |
 

@@ -184,6 +184,40 @@ class RestArea(KexModel):
     coordinate: GeoPoint | None = None
 
 
+class RestAreaRouteFacility(KexModel):
+    route_code: str | None
+    service_area_code: str
+    service_area_code2: str | None = None
+    route_name: str | None
+    direction: str | None
+    service_area_name: str | None
+    phone_number: str | None
+    address: str | None = None
+    brand: str | None = None
+    convenience: str | None = None
+    has_maintenance: bool | None
+    is_truck_rest_area: bool | None
+    representative_food: str | None
+    raw: dict[str, Any]
+
+
+class RestAreaFuelPrice(KexModel):
+    route_code: str | None
+    service_area_code: str
+    service_area_code2: str | None = None
+    route_name: str | None
+    direction: str | None
+    oil_company: str | None
+    has_lpg: bool | None
+    service_area_name: str | None
+    phone_number: str | None
+    address: str | None = None
+    gasoline_price: int | None
+    diesel_price: int | None
+    lpg_price: int | None
+    raw: dict[str, Any]
+
+
 class FoodPrice(KexModel):
     service_area_code: str | None
     service_area_name: str | None

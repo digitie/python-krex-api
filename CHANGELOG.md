@@ -54,6 +54,10 @@ Initial package scaffold and first implementation pass.
   while preserving existing `lat`/`lon` and `x`/`y` fields.
 - Pydantic v2 public response models with frozen instances, validation,
   `model_dump()`, and JSON schema support.
+- `restarea.route_facilities()`, `restarea.fuel_prices()`, and
+  `restarea.convenience_facilities()` for KEX 휴게소 master 후보, 휴게소
+  주유소 가격, 노선별 편의시설 조회.
+- `RestAreaRouteFacility` and `RestAreaFuelPrice` Pydantic models.
 
 ### Fixed
 
@@ -67,3 +71,7 @@ Initial package scaffold and first implementation pass.
   `inoutType`, and `trafficAmout`.
 - Empty successful `data.ex.co.kr` responses preserve `count=0` as
   `Page.total_count == 0`.
+- Conversion helpers now accept common unit-suffixed numeric values such as
+  `1,994원` and O/X boolean flags observed in KEX rest-area APIs.
+- Rest-area route facility parsing now tolerates real records where
+  `serviceAreaName` is empty while code and facility metadata are present.

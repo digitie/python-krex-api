@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import date, datetime
 from typing import Any
 
@@ -17,14 +18,22 @@ def to_int_or_none(value: Any) -> int | None:
     text = strip_or_none(value)
     if text is None:
         return None
-    return int(text.replace(",", ""))
+    normalized = text.replace(",", "")
+    match = re.fullmatch(r"([-+]?\d+)(?:\D+)?", normalized)
+    if match is None:
+        raise ValueError(f"expected integer-compatible value, got {value!r}")
+    return int(match.group(1))
 
 
 def to_float_or_none(value: Any) -> float | None:
     text = strip_or_none(value)
     if text is None:
         return None
-    return float(text.replace(",", ""))
+    normalized = text.replace(",", "")
+    match = re.fullmatch(r"([-+]?\d+(?:\.\d+)?)(?:\D+)?", normalized)
+    if match is None:
+        raise ValueError(f"expected float-compatible value, got {value!r}")
+    return float(match.group(1))
 
 
 def to_date_or_none(value: Any) -> date | None:
@@ -41,11 +50,11 @@ def to_bool_yn(value: Any) -> bool | None:
     if text is None:
         return None
     upper = text.upper()
-    if upper == "Y":
+    if upper in {"Y", "YES", "TRUE", "1", "O"}:
         return True
-    if upper == "N":
+    if upper in {"N", "NO", "FALSE", "0", "X"}:
         return False
-    raise ValueError(f"expected Y/N value, got {value!r}")
+    raise ValueError(f"expected Y/N or O/X value, got {value!r}")
 
 
 def normalize_items(value: Any, field: str) -> list[dict[str, Any]]:

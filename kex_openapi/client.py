@@ -37,6 +37,8 @@ from .models import (
     Page,
     RawCoordinate,
     RestArea,
+    RestAreaFuelPrice,
+    RestAreaRouteFacility,
     Route,
     TollFee,
     Tollgate,
@@ -270,6 +272,31 @@ class TollfeeNamespace:
 class RestareaNamespace:
     _client: KexClient
 
+    def route_facilities(
+        self,
+        *,
+        route_name: str | None = None,
+        direction: str | None = None,
+        service_area_name: str | None = None,
+        route_code: str | None = None,
+        service_area_code: str | None = None,
+        num_of_rows: int = 1000,
+        page_no: int = 1,
+    ) -> Page[RestAreaRouteFacility]:
+        return self._client._page_ex(
+            "/openapi/business/serviceAreaRoute",
+            {
+                "routeName": route_name,
+                "direction": direction,
+                "serviceAreaName": service_area_name,
+                "routeCode": route_code,
+                "serviceAreaCode": service_area_code,
+                "numOfRows": num_of_rows,
+                "pageNo": page_no,
+            },
+            _rest_area_route_facility,
+        )
+
     def list_all(
         self,
         *,
@@ -292,6 +319,56 @@ class RestareaNamespace:
 
     def food_price(self, **params: Any) -> Page[FoodPrice]:
         return self._client._page_ex("/openapi/restinfo/restMenuList", params, _food_price)
+
+    def fuel_prices(
+        self,
+        *,
+        route_name: str | None = None,
+        direction: str | None = None,
+        oil_company: str | None = None,
+        service_area_name: str | None = None,
+        route_code: str | None = None,
+        service_area_code: str | None = None,
+        num_of_rows: int = 1000,
+        page_no: int = 1,
+    ) -> Page[RestAreaFuelPrice]:
+        return self._client._page_ex(
+            "/openapi/business/curStateStation",
+            {
+                "routeName": route_name,
+                "direction": direction,
+                "oilCompany": oil_company,
+                "serviceAreaName": service_area_name,
+                "routeCode": route_code,
+                "serviceAreaCode": service_area_code,
+                "numOfRows": num_of_rows,
+                "pageNo": page_no,
+            },
+            _rest_area_fuel_price,
+        )
+
+    def convenience_facilities(
+        self,
+        *,
+        direction: str | None = None,
+        service_area_name: str | None = None,
+        route_code: str | None = None,
+        service_area_code: str | None = None,
+        num_of_rows: int = 1000,
+        page_no: int = 1,
+    ) -> Page[dict[str, Any]]:
+        return self._client._page_ex(
+            "/openapi/business/conveniServiceArea",
+            {
+                "direction": direction,
+                "serviceAreaName": service_area_name,
+                "routeCode": route_code,
+                "serviceAreaCode": service_area_code,
+                "numOfRows": num_of_rows,
+                "pageNo": page_no,
+            },
+            dict,
+        )
 
     def parking(self, **params: Any) -> Page[dict[str, Any]]:
         return self._client._page_ex("/openapi/restinfo/restParking", params, dict)
@@ -487,6 +564,44 @@ def _rest_area(row: dict[str, Any]) -> RestArea:
     )
 
 
+def _rest_area_route_facility(row: dict[str, Any]) -> RestAreaRouteFacility:
+    return RestAreaRouteFacility(
+        route_code=strip_or_none(_get(row, "routeCode")),
+        service_area_code=str(_required(row, "serviceAreaCode")),
+        service_area_code2=strip_or_none(_get(row, "serviceAreaCode2")),
+        route_name=strip_or_none(_get(row, "routeName")),
+        direction=strip_or_none(_get(row, "direction")),
+        service_area_name=strip_or_none(_get(row, "serviceAreaName")),
+        phone_number=strip_or_none(_get(row, "telNo", "phoneNumber", "tel")),
+        address=strip_or_none(_get(row, "svarAddr", "address")),
+        brand=strip_or_none(_get(row, "brand")),
+        convenience=strip_or_none(_get(row, "convenience")),
+        has_maintenance=to_bool_yn(_get(row, "maintenanceYn")),
+        is_truck_rest_area=to_bool_yn(_get(row, "truckSaYn")),
+        representative_food=strip_or_none(_get(row, "batchMenu", "representativeFood")),
+        raw=row,
+    )
+
+
+def _rest_area_fuel_price(row: dict[str, Any]) -> RestAreaFuelPrice:
+    return RestAreaFuelPrice(
+        route_code=strip_or_none(_get(row, "routeCode")),
+        service_area_code=str(_required(row, "serviceAreaCode")),
+        service_area_code2=strip_or_none(_get(row, "serviceAreaCode2")),
+        route_name=strip_or_none(_get(row, "routeName")),
+        direction=strip_or_none(_get(row, "direction")),
+        oil_company=strip_or_none(_get(row, "oilCompany")),
+        has_lpg=to_bool_yn(_get(row, "lpgYn")),
+        service_area_name=strip_or_none(_get(row, "serviceAreaName")),
+        phone_number=strip_or_none(_get(row, "telNo", "phoneNumber", "tel")),
+        address=strip_or_none(_get(row, "svarAddr", "address")),
+        gasoline_price=to_int_or_none(_get(row, "gasolinePrice")),
+        diesel_price=to_int_or_none(_get(row, "diselPrice", "dieselPrice")),
+        lpg_price=to_int_or_none(_get(row, "lpgPrice")),
+        raw=row,
+    )
+
+
 def _food_price(row: dict[str, Any]) -> FoodPrice:
     return FoodPrice(
         service_area_code=strip_or_none(_get(row, "serviceAreaCode")),
@@ -539,9 +654,7 @@ def _required(row: dict[str, Any], *names: str) -> Any:
 
 
 def _geo_point_from_row(row: dict[str, Any]) -> GeoPoint | None:
-    lon = to_float_or_none(
-        _get(row, "lon", "longitude", "lng", "lcLongitude", "경도", "xcoord")
-    )
+    lon = to_float_or_none(_get(row, "lon", "longitude", "lng", "lcLongitude", "경도", "xcoord"))
     lat = to_float_or_none(_get(row, "lat", "latitude", "lcLatitude", "위도", "ycoord"))
     if lon is None or lat is None:
         return None
@@ -564,8 +677,6 @@ def _raw_coordinate(x: float | None, y: float | None) -> RawCoordinate | None:
     if x is None or y is None:
         return None
     system = (
-        CoordinateSystem.WGS84
-        if _wgs84_from_xy(x, y) is not None
-        else CoordinateSystem.UNKNOWN
+        CoordinateSystem.WGS84 if _wgs84_from_xy(x, y) is not None else CoordinateSystem.UNKNOWN
     )
     return RawCoordinate(x=x, y=y, system=system)

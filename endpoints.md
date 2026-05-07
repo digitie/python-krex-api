@@ -22,7 +22,10 @@
   - [영업소간 통행요금 (`tollfee.between_tollgates`)](#영업소간-통행요금)
   - [영업소 목록 (`tollfee.tollgate_list`)](#영업소-목록)
 - [휴게소 (Restarea)](#휴게소-restarea)
+  - [노선별 휴게시설 현황 (`restarea.route_facilities`)](#노선별-휴게시설-현황)
   - [전국 휴게소 정보 (`restarea.list_all`)](#전국-휴게소-정보)
+  - [주유소별 가격·업체 현황 (`restarea.fuel_prices`)](#주유소별-가격업체-현황)
+  - [노선별·방향별 휴게소 편의시설 현황 (`restarea.convenience_facilities`)](#노선별방향별-휴게소-편의시설-현황)
   - [휴게소 음식가격 (`restarea.food_price`)](#휴게소-음식가격)
   - [주차장/Wi-Fi/화장실 시설 정보](#휴게소-시설-정보)
 - [영업소·시설 (Facility)](#영업소시설-facility)
@@ -282,6 +285,44 @@ print(res.items[0].traffic_volume)
 
 ## 휴게소 (Restarea)
 
+### 노선별 휴게시설 현황
+
+휴게소 master성 코드/명칭/노선/방향/전화번호와 일부 대표 시설 여부를 조회한다.
+
+- **포털**: `data.ex.co.kr`
+- **경로**: `/openapi/business/serviceAreaRoute`
+- **메서드**: `client.restarea.route_facilities()`
+
+**파라미터**
+
+| 이름 | 필수 | 타입 | 설명 |
+|------|------|------|------|
+| `routeName` | O | `str` | 노선명 |
+| `direction` | O | `str` | 방향 |
+| `serviceAreaName` | O | `str` | 휴게소명 |
+| `routeCode` | O | `str` | 노선코드 |
+| `serviceAreaCode` | O | `str` | 휴게소코드 |
+
+**응답 필드**
+
+| 원본 필드 | 모델 필드 | 타입 | 설명 |
+|-----------|-----------|------|------|
+| `routeCode` | `route_code` | `str | None` | 노선코드 |
+| `serviceAreaCode` | `service_area_code` | `str` | 휴게소코드 |
+| `serviceAreaCode2` | `service_area_code2` | `str | None` | 보조 휴게소코드 |
+| `routeName` | `route_name` | `str | None` | 노선명 |
+| `direction` | `direction` | `str | None` | 방향 |
+| `serviceAreaName` | `service_area_name` | `str | None` | 휴게소명. 실제 응답에서 비어 있을 수 있음 |
+| `telNo` | `phone_number` | `str | None` | 전화번호 |
+| `svarAddr` | `address` | `str | None` | 주소 |
+| `brand` | `brand` | `str | None` | 브랜드 매장 |
+| `convenience` | `convenience` | `str | None` | 편의시설 문자열 |
+| `maintenanceYn` | `has_maintenance` | `bool | None` | 경정비 가능 여부. `Y/N`과 `O/X`를 처리 |
+| `truckSaYn` | `is_truck_rest_area` | `bool | None` | 화물휴게소 여부. `Y/N`과 `O/X`를 처리 |
+| `batchMenu` | `representative_food` | `str | None` | 대표음식 |
+
+---
+
 ### 전국 휴게소 정보
 
 - **포털**: `data.ex.co.kr` / `data.go.kr` 표준 (`tn_pubr_public_rest_area_api`)
@@ -311,6 +352,64 @@ print(res.items[0].traffic_volume)
 | `pharmacyYn`, `clinicYn` | 약국/의료시설 |
 | `phoneNumber` | 대표전화 |
 | `referenceDate` | 데이터 기준일 |
+
+---
+
+### 주유소별 가격·업체 현황
+
+고속도로 휴게소 내 주유소의 정유사와 유종별 가격을 조회한다.
+
+- **포털**: `data.ex.co.kr`
+- **경로**: `/openapi/business/curStateStation`
+- **메서드**: `client.restarea.fuel_prices()`
+
+**파라미터**
+
+| 이름 | 필수 | 타입 | 설명 |
+|------|------|------|------|
+| `routeName` | O | `str` | 노선명 |
+| `direction` | O | `str` | 방향 |
+| `oilCompany` | O | `str` | 정유사 |
+| `serviceAreaName` | O | `str` | 휴게소명 |
+| `routeCode` | O | `str` | 노선코드 |
+| `serviceAreaCode` | O | `str` | 휴게소코드 |
+
+**응답 필드**
+
+| 원본 필드 | 모델 필드 | 타입 | 설명 |
+|-----------|-----------|------|------|
+| `routeCode` | `route_code` | `str | None` | 노선코드 |
+| `serviceAreaCode` | `service_area_code` | `str` | 휴게소코드 |
+| `serviceAreaCode2` | `service_area_code2` | `str | None` | 보조 휴게소코드 |
+| `routeName` | `route_name` | `str | None` | 노선명 |
+| `direction` | `direction` | `str | None` | 방향 |
+| `oilCompany` | `oil_company` | `str | None` | 정유사 |
+| `lpgYn` | `has_lpg` | `bool | None` | LPG 여부. `Y/N`과 `O/X`를 처리 |
+| `serviceAreaName` | `service_area_name` | `str | None` | 휴게소/주유소명 |
+| `telNo` | `phone_number` | `str | None` | 전화번호 |
+| `svarAddr` | `address` | `str | None` | 주소 |
+| `gasolinePrice` | `gasoline_price` | `int | None` | 휘발유 가격. `1,994원` 같은 단위 suffix를 처리 |
+| `diselPrice` / `dieselPrice` | `diesel_price` | `int | None` | 경유 가격 |
+| `lpgPrice` | `lpg_price` | `int | None` | LPG 가격 |
+
+---
+
+### 노선별·방향별 휴게소 편의시설 현황
+
+- **포털**: `data.ex.co.kr`
+- **경로**: `/openapi/business/conveniServiceArea`
+- **메서드**: `client.restarea.convenience_facilities()`
+
+응답 필드는 포털 문서와 실제 응답 간 차이가 있을 수 있어 현재는 `Page[dict]`로 반환한다.
+
+**파라미터**
+
+| 이름 | 필수 | 타입 | 설명 |
+|------|------|------|------|
+| `direction` | O | `str` | 방향 |
+| `serviceAreaName` | O | `str` | 휴게소명 |
+| `routeCode` | O | `str` | 노선코드 |
+| `serviceAreaCode` | O | `str` | 휴게소코드 |
 
 ---
 
