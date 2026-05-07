@@ -230,6 +230,96 @@ def test_restarea_standard_data_uses_go_key_and_parses_bool() -> None:
     assert rest_area.coordinate.lonlat == pytest.approx((127.104, 37.332))
 
 
+def test_restarea_route_facilities_parse_service_area_master_fields() -> None:
+    session = FakeSession(
+        ex_payload(
+            {
+                "routeCode": "0010",
+                "serviceAreaCode": "A0001",
+                "routeName": "경부고속도로",
+                "direction": "서울",
+                "serviceAreaName": "죽전휴게소",
+                "telNo": "031-000-0000",
+                "serviceAreaCode2": "000139",
+                "svarAddr": "경기 용인시 수지구",
+                "brand": "투썸플레이스",
+                "convenience": "수유실|쉼터",
+                "maintenanceYn": "X",
+                "truckSaYn": "N",
+                "batchMenu": "죽전라면",
+            }
+        )
+    )
+    client = KexClient(ex_api_key="ex-key", retry_backoff=0, session=session)
+
+    facility = client.restarea.route_facilities(
+        route_code="0010",
+        service_area_code="A0001",
+    ).items[0]
+
+    assert session.last_url.endswith("/openapi/business/serviceAreaRoute")
+    assert session.last_params["routeCode"] == "0010"
+    assert session.last_params["serviceAreaCode"] == "A0001"
+    assert facility.service_area_code == "A0001"
+    assert facility.service_area_code2 == "000139"
+    assert facility.service_area_name == "죽전휴게소"
+    assert facility.address == "경기 용인시 수지구"
+    assert facility.brand == "투썸플레이스"
+    assert facility.convenience == "수유실|쉼터"
+    assert facility.has_maintenance is False
+    assert facility.is_truck_rest_area is False
+    assert facility.representative_food == "죽전라면"
+
+
+def test_restarea_fuel_prices_parse_money_and_lpg_flag() -> None:
+    session = FakeSession(
+        ex_payload(
+            [
+                {
+                    "routeCode": "0010",
+                    "serviceAreaCode": "A0001",
+                    "routeName": "경부고속도로",
+                    "direction": "서울",
+                    "oilCompany": "EX-OIL",
+                    "lpgYn": "Y",
+                    "serviceAreaName": "죽전휴게소",
+                    "telNo": "031-000-0000",
+                    "serviceAreaCode2": "000139",
+                    "svarAddr": "경기 용인시 수지구",
+                    "gasolinePrice": "1,710원",
+                    "diselPrice": "1,599원",
+                    "lpgPrice": "1,010원",
+                }
+            ]
+        )
+    )
+    client = KexClient(ex_api_key="ex-key", retry_backoff=0, session=session)
+
+    fuel = client.restarea.fuel_prices(oil_company="EX-OIL").items[0]
+
+    assert session.last_url.endswith("/openapi/business/curStateStation")
+    assert session.last_params["oilCompany"] == "EX-OIL"
+    assert fuel.service_area_code == "A0001"
+    assert fuel.service_area_code2 == "000139"
+    assert fuel.oil_company == "EX-OIL"
+    assert fuel.has_lpg is True
+    assert fuel.address == "경기 용인시 수지구"
+    assert fuel.gasoline_price == 1710
+    assert fuel.diesel_price == 1599
+    assert fuel.lpg_price == 1010
+
+
+def test_restarea_convenience_facilities_stays_raw_until_schema_is_verified() -> None:
+    session = FakeSession(ex_payload([{"serviceAreaCode": "A0001", "unknownFacility": "Y"}]))
+    client = KexClient(ex_api_key="ex-key", retry_backoff=0, session=session)
+
+    page = client.restarea.convenience_facilities(service_area_name="죽전휴게소")
+
+    assert session.last_url.endswith("/openapi/business/conveniServiceArea")
+    assert session.last_params["serviceAreaName"] == "죽전휴게소"
+    assert page.items[0] == {"serviceAreaCode": "A0001", "unknownFacility": "Y"}
+
+
 def test_food_price_parses_recommend_flag() -> None:
     session = FakeSession(
         ex_payload(

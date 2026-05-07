@@ -70,3 +70,49 @@ def test_live_data_ex_traffic_route_accepts_valid_key_even_when_empty() -> None:
     assert page.raw is not None
     assert page.raw["code"] == "SUCCESS"
     assert page.total_count is not None
+
+
+@pytest.mark.live
+def test_live_restarea_route_facilities_accepts_real_payload_shape() -> None:
+    client = _live_client()
+
+    page = client.restarea.route_facilities(num_of_rows=1, page_no=1)
+
+    assert page.raw is not None
+    assert page.raw["code"] == "SUCCESS"
+    assert page.total_count is not None
+    assert page.items
+    first = page.items[0]
+    assert first.service_area_code
+    assert first.has_maintenance in {True, False, None}
+    assert first.is_truck_rest_area in {True, False, None}
+
+
+@pytest.mark.live
+def test_live_restarea_fuel_prices_parse_won_prices() -> None:
+    client = _live_client()
+
+    page = client.restarea.fuel_prices(num_of_rows=1, page_no=1)
+
+    assert page.raw is not None
+    assert page.raw["code"] == "SUCCESS"
+    assert page.total_count is not None
+    assert page.items
+    first = page.items[0]
+    assert first.service_area_code
+    assert first.gasoline_price is None or first.gasoline_price >= 0
+    assert first.diesel_price is None or first.diesel_price >= 0
+    assert first.lpg_price is None or first.lpg_price >= 0
+
+
+@pytest.mark.live
+def test_live_restarea_convenience_facilities_keeps_raw_payload() -> None:
+    client = _live_client()
+
+    page = client.restarea.convenience_facilities(num_of_rows=1, page_no=1)
+
+    assert page.raw is not None
+    assert page.raw["code"] == "SUCCESS"
+    assert page.total_count is not None
+    assert page.items
+    assert "serviceAreaCode" in page.items[0]

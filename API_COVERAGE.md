@@ -1,6 +1,6 @@
 # API Coverage
 
-Snapshot date: 2026-05-06
+Snapshot date: 2026-05-07
 
 This document separates three different ideas that are easy to mix up:
 
@@ -25,7 +25,10 @@ an explicit backlog for broader official coverage.
 | `traffic.avc_raw()` | `data.ex.co.kr` | `Page[dict]` | Yes | No | Raw high-volume endpoint; requires `vds_id` and `std_date`. |
 | `tollfee.between_tollgates()` | `data.ex.co.kr` | `Page[TollFee]` | Yes | No | Path returned 404 in an earlier live probe; likely needs portal path correction. |
 | `tollfee.tollgate_list()` | `data.ex.co.kr` | `Page[Tollgate]` | Yes | No | Path returned 404 in an earlier live probe; public model exists but path is unverified. |
+| `restarea.route_facilities()` | `data.ex.co.kr` | `Page[RestAreaRouteFacility]` | Yes | Yes | Request URL from KEX OpenAPI guide: `/openapi/business/serviceAreaRoute`; real payload can include `serviceAreaName=None` and O/X flags. |
 | `restarea.list_all()` | `data.go.kr` | `Page[RestArea]` | Yes | No | Standard-data endpoint uses `type=json`, not `_type=json`. |
+| `restarea.fuel_prices()` | `data.ex.co.kr` | `Page[RestAreaFuelPrice]` | Yes | Yes | Request URL from KEX OpenAPI guide: `/openapi/business/curStateStation`; real prices include `원` suffix. |
+| `restarea.convenience_facilities()` | `data.ex.co.kr` | `Page[dict]` | Yes | Yes | Request URL from KEX OpenAPI guide: `/openapi/business/conveniServiceArea`; kept raw until schema is promoted. |
 | `restarea.food_price()` | `data.ex.co.kr` | `Page[FoodPrice]` | Yes | No | Path returned 404 in an earlier live probe; keep as unverified. |
 | `restarea.parking()` | `data.ex.co.kr` | `Page[dict]` | Yes | No | Unit-tested wrapper, live path unverified. |
 | `restarea.wifi()` | `data.ex.co.kr` | `Page[dict]` | Yes | No | Unit-tested wrapper, live path unverified. |
@@ -43,12 +46,12 @@ an explicit backlog for broader official coverage.
 
 | Category | Count |
 |---|---:|
-| Methods documented in `endpoints.md` | 21 |
-| Methods implemented in `KexClient` namespaces | 21 |
-| Methods with typed public models | 7 |
-| Methods returning raw `dict` records | 12 |
+| Methods documented in `endpoints.md` | 24 |
+| Methods implemented in `KexClient` namespaces | 24 |
+| Methods with typed public models | 9 |
+| Methods returning raw `dict` records | 13 |
 | Local reference helpers | 2 |
-| Methods live-verified against provider | 2 |
+| Methods live-verified against provider | 5 |
 
 ## Broader Official API Backlog
 
