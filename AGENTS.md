@@ -11,6 +11,11 @@ This repository follows the same working shape as `pykma` and `pyopinet`.
   `kex_openapi/client.py`; do not use local absolute paths.
 - Write Python docstrings and explanatory comments in Korean unless quoting
   provider text or preserving code identifiers.
+- In this Windows workspace, `rg.exe` can fail with `Access is denied`; when it
+  does, search with PowerShell file enumeration and `Select-String` instead.
+- Read UTF-8 Markdown with explicit encoding, for example
+  `Get-Content -Path README.md -Encoding utf8`, so Korean text does not look
+  corrupted in PowerShell output.
 - Keep public return values typed Pydantic models or enum values, not raw strings,
   whenever the field has a stable meaning.
 - Use `GeoPoint(lon, lat)` for public WGS84 coordinates and expose raw

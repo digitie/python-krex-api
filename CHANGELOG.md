@@ -56,6 +56,8 @@ Initial package scaffold and first implementation pass.
   `model_dump()`, and JSON schema support.
 - Korean Python docstrings and documentation rules requiring project-relative
   file paths.
+- Agent workflow notes for the Windows `rg.exe` access-denied fallback and
+  explicit UTF-8 PowerShell reads.
 - `restarea.route_facilities()`, `restarea.fuel_prices()`, and
   `restarea.convenience_facilities()` for KEX 휴게소 master 후보, 휴게소
   주유소 가격, 노선별 편의시설 조회.

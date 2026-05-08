@@ -96,6 +96,11 @@ Style rules:
   `kex_openapi/client.py`, not local absolute paths.
 - Write Python docstrings and explanatory comments in Korean unless quoting
   provider text or preserving public code/protocol identifiers.
+- In the Windows workspace, `rg.exe` may fail with `Access is denied`; use
+  PowerShell enumeration with `Select-String` as the fallback.
+- Read UTF-8 Markdown with explicit PowerShell encoding, for example
+  `Get-Content -Path README.md -Encoding utf8`, before assuming Korean text is
+  corrupted.
 
 ## Security
 

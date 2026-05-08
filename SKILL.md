@@ -30,6 +30,12 @@ The public package import name is `kex_openapi`; the distribution name is
   `kex_openapi/client.py`; avoid local absolute paths.
 - Write Python docstrings and explanatory comments in Korean unless preserving
   provider text, public code identifiers, or protocol literals.
+- In this Windows workspace, `rg.exe` may be present but fail with
+  `Access is denied`. Use PowerShell enumeration as the fallback:
+  `Get-ChildItem -Recurse -File | Select-String -Pattern "..."`.
+- When reading Markdown or other UTF-8 text in PowerShell, pass
+  `-Encoding utf8` to `Get-Content` or `Select-String` to avoid garbled Korean
+  output.
 - Prefer immutable Pydantic models for public return models and `StrEnum` for
   stable code values.
 - If an endpoint path is uncertain, expose it as `Page[dict]` first and document
@@ -132,6 +138,10 @@ Update documentation in the same change:
 - Do not let API keys appear in model repr output.
 - Do not use dataclass-only helpers such as `asdict()` or `__post_init__`;
   use Pydantic validators and `model_dump()` instead.
+- Do not retry `rg` repeatedly after an `Access is denied` failure in this
+  workspace; switch to PowerShell file enumeration immediately.
+- Do not diagnose Korean Markdown as broken before checking it with explicit
+  UTF-8 encoding in PowerShell.
 
 ## Release Checklist
 
