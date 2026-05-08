@@ -1,4 +1,4 @@
-"""Public Pydantic models returned by kex-openapi."""
+"""kex-openapi가 반환하는 공개 Pydantic 모델."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ T = TypeVar("T")
 
 
 class KexModel(BaseModel):
-    """Base class for immutable public response models."""
+    """불변 공개 응답 모델의 공통 기반 클래스."""
 
     model_config = ConfigDict(frozen=True, use_enum_values=False)
 
@@ -53,10 +53,11 @@ class Page(KexModel, Generic[T]):
 
 
 class GeoPoint(KexModel):
-    """Standard WGS84 longitude/latitude point.
+    """표준 WGS84 경도/위도 좌표.
 
-    `lon` comes first to match GeoJSON and most GIS APIs. The `latlon` property
-    is available for UI libraries that expect `(lat, lon)`.
+    GeoJSON과 대부분의 GIS API 순서에 맞춰 `lon`을 먼저 둡니다.
+    `(lat, lon)` 순서를 기대하는 UI 라이브러리에는 `latlon` 속성을
+    사용할 수 있습니다.
     """
 
     lon: float

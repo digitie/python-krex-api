@@ -12,7 +12,7 @@ Initial package scaffold and first implementation pass.
   `reference` namespaces.
 - `data.ex.co.kr` and `data.go.kr` HTTP helpers with retry handling and
   provider error-code mapping.
-- Public dataclasses for key response types:
+- Public response models for key response types:
   `TrafficByIc`, `TrafficFlow`, `Incident`, `TollFee`, `Tollgate`,
   `RestArea`, `FoodPrice`, `Route`, and `Page`.
 - Stable enum code tables for car type, TCS type, road operator, direction,
@@ -54,6 +54,8 @@ Initial package scaffold and first implementation pass.
   while preserving existing `lat`/`lon` and `x`/`y` fields.
 - Pydantic v2 public response models with frozen instances, validation,
   `model_dump()`, and JSON schema support.
+- Korean Python docstrings and documentation rules requiring project-relative
+  file paths.
 - `restarea.route_facilities()`, `restarea.fuel_prices()`, and
   `restarea.convenience_facilities()` for KEX 휴게소 master 후보, 휴게소
   주유소 가격, 노선별 편의시설 조회.

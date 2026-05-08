@@ -32,9 +32,9 @@ Read the documents that match your task:
 ## Adding An Endpoint
 
 1. Add or confirm the endpoint entry in `endpoints.md`.
-2. Add code enums in `kex_openapi.codes` if the endpoint uses stable public codes.
-3. Add a dataclass in `kex_openapi.models` only when the response schema is known.
-4. Add the client method in the correct namespace in `kex_openapi.client`.
+2. Add code enums in `kex_openapi/codes.py` if the endpoint uses stable public codes.
+3. Add a Pydantic model in `kex_openapi/models.py` only when the response schema is known.
+4. Add the client method in the correct namespace in `kex_openapi/client.py`.
 5. Add tests for query parameters, response parsing, single-object normalization,
    provider errors, malformed shapes, and local validation.
 6. Update README examples only for endpoints that users should call directly.
@@ -89,6 +89,13 @@ Common placements:
 - `codes.md`: public code tables.
 - `error-codes.md`: exception mapping.
 - `SKILL.md` / `AGENTS.md`: workflow rules and repeated mistakes.
+
+Style rules:
+
+- Document file locations as project-root-relative paths such as
+  `kex_openapi/client.py`, not local absolute paths.
+- Write Python docstrings and explanatory comments in Korean unless quoting
+  provider text or preserving public code/protocol identifiers.
 
 ## Security
 

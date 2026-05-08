@@ -1,4 +1,4 @@
-"""HTTP helper for Korea Expressway Corporation APIs."""
+"""한국도로공사 API용 HTTP 헬퍼."""
 
 from __future__ import annotations
 

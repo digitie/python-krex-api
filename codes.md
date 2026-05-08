@@ -1,7 +1,7 @@
 # Code Tables
 
 한국도로공사 OpenAPI에서 사용하는 코드값 모음.
-라이브러리에서는 모두 `kex_openapi.codes` 모듈에 enum 형태로 제공됩니다.
+라이브러리에서는 모두 `kex_openapi/codes.py` 파일에 enum 형태로 제공됩니다.
 
 > **주의**
 > 일부 코드(특히 영업소 코드)는 도로 신설/변경에 따라 추가·수정됩니다.

@@ -329,14 +329,14 @@ ruff check .
 
 | 모듈 | 책임 |
 |---|---|
-| `kex_openapi.client` | 사용자용 `KexClient`, 엔드포인트 네임스페이스, 모델 파싱 |
-| `kex_openapi._http` | HTTP 호출, retry, 포털별 envelope 정규화, 에러 매핑 |
-| `kex_openapi._convert` | 문자열 기반 API 응답을 Python 타입으로 변환 |
-| `kex_openapi.codes` | 안정적인 코드값 enum과 라벨 |
-| `kex_openapi.models` | public Pydantic 반환 모델 |
-| `kex_openapi.exceptions` | 예외 계층 |
+| `kex_openapi/client.py` | 사용자용 `KexClient`, 엔드포인트 네임스페이스, 모델 파싱 |
+| `kex_openapi/_http.py` | HTTP 호출, retry, 포털별 envelope 정규화, 에러 매핑 |
+| `kex_openapi/_convert.py` | 문자열 기반 API 응답을 Python 타입으로 변환 |
+| `kex_openapi/codes.py` | 안정적인 코드값 enum과 라벨 |
+| `kex_openapi/models.py` | public Pydantic 반환 모델 |
+| `kex_openapi/exceptions.py` | 예외 계층 |
 
-새 기능을 넣을 때는 보통 `codes.py`/`models.py`를 먼저 보강하고, `client.py`에서 메서드를 연결한 뒤, `tests/`에서 fake 응답으로 쿼리와 변환을 잠급니다.
+새 기능을 넣을 때는 보통 `kex_openapi/codes.py`와 `kex_openapi/models.py`를 먼저 보강하고, `kex_openapi/client.py`에서 메서드를 연결한 뒤, `tests/`에서 fake 응답으로 쿼리와 변환을 잠급니다.
 
 ---
 

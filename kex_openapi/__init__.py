@@ -1,4 +1,4 @@
-"""Unofficial Python client for Korea Expressway Corporation OpenAPIs."""
+"""한국도로공사 OpenAPI 비공식 Python 클라이언트."""
 
 from .client import KexClient
 from .codes import (

@@ -82,7 +82,7 @@ Use these states while expanding coverage:
 |---|---|
 | `planned` | Known official dataset, no wrapper yet. |
 | `raw-wrapper` | Method exists and returns `Page[dict]`; path may still need live verification. |
-| `typed-wrapper` | Method returns public dataclasses/enums and has unit tests for parsing. |
+| `typed-wrapper` | Method returns public Pydantic models/enums and has unit tests for parsing. |
 | `live-verified` | Real provider call passed and response quirks are documented. |
 | `deprecated-or-broken` | Provider path is known to return 404/405/HTML or has been replaced. |
 

@@ -1,4 +1,4 @@
-"""High-level client for Korea Expressway Corporation OpenAPIs."""
+"""한국도로공사 OpenAPI 고수준 클라이언트."""
 
 from __future__ import annotations
 
@@ -51,11 +51,11 @@ E = TypeVar("E", bound=KexCode)
 
 
 class KexClient:
-    """Client entrypoint for KEX OpenAPIs.
+    """KEX OpenAPI 호출 진입점.
 
-    The client exposes endpoint namespaces (`traffic`, `tollfee`, `restarea`,
-    `facility`, `admin`, and `reference`) to keep method names close to the
-    documentation in `endpoints.md`.
+    엔드포인트 문서(`endpoints.md`)와 메서드 이름이 비슷하게 보이도록
+    `traffic`, `tollfee`, `restarea`, `facility`, `admin`, `reference`
+    네임스페이스를 제공합니다.
     """
 
     def __init__(

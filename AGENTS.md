@@ -7,6 +7,10 @@ This repository follows the same working shape as `pykma` and `pyopinet`.
 - Do not commit API keys. Use `KEX_EX_API_KEY` for `data.ex.co.kr` and
   `KEX_GO_API_KEY` for `data.go.kr`.
 - Unit tests must not call the network. Use fake sessions or fixtures.
+- In documents, write file locations as project-root-relative paths such as
+  `kex_openapi/client.py`; do not use local absolute paths.
+- Write Python docstrings and explanatory comments in Korean unless quoting
+  provider text or preserving code identifiers.
 - Keep public return values typed Pydantic models or enum values, not raw strings,
   whenever the field has a stable meaning.
 - Use `GeoPoint(lon, lat)` for public WGS84 coordinates and expose raw
@@ -23,11 +27,11 @@ This repository follows the same working shape as `pykma` and `pyopinet`.
 
 ## Module Ownership
 
-- `kex_openapi._http`: transport, retries, API envelope/error mapping.
-- `kex_openapi._convert`: small conversion helpers at the response boundary.
-- `kex_openapi.codes`: enums and code labels.
-- `kex_openapi.models`: public Pydantic return models.
-- `kex_openapi.client`: high-level endpoint namespaces and parsing.
+- `kex_openapi/_http.py`: transport, retries, API envelope/error mapping.
+- `kex_openapi/_convert.py`: small conversion helpers at the response boundary.
+- `kex_openapi/codes.py`: enums and code labels.
+- `kex_openapi/models.py`: public Pydantic return models.
+- `kex_openapi/client.py`: high-level endpoint namespaces and parsing.
 - `API_COVERAGE.md`: source-of-truth for implemented vs live-verified API
   status.
 
@@ -52,6 +56,8 @@ When behavior changes, update the matching document in the same patch:
 - Code enum changes: `codes.md`.
 - Exception or provider error mapping changes: `error-codes.md`.
 - Agent workflow or repeated mistakes: `SKILL.md` and this file.
+- Documentation style changes: update `CONTRIBUTING.md`, `SKILL.md`, and this
+  file together when the rule affects future contributors or agents.
 
 ## Commit Hygiene
 

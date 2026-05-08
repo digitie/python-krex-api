@@ -1,4 +1,4 @@
-"""Enums and code mappings used by Korea Expressway Corporation APIs."""
+"""한국도로공사 API에서 사용하는 enum과 코드 매핑."""
 
 from __future__ import annotations
 
@@ -11,10 +11,10 @@ E = TypeVar("E", bound="KexCode")
 
 
 class KexCode(StrEnum):
-    """Base enum for stable KEX API codes.
+    """안정적인 KEX API 코드값의 공통 enum 기반 클래스.
 
-    External applications can use `values()`, `labels()`, and `choices()` to
-    build forms, validators, or API documentation without duplicating tables.
+    외부 프로그램은 `values()`, `labels()`, `choices()`를 사용해 코드표를
+    중복하지 않고 폼, validator, API 문서를 만들 수 있습니다.
     """
 
     @property
@@ -44,7 +44,7 @@ class KexCode(StrEnum):
 
 
 def coerce_code(enum_type: type[E], value: E | str, field: str) -> str:
-    """Return a raw API code after validating enum-compatible input."""
+    """Enum과 호환되는 입력을 검증한 뒤 원시 API 코드값을 반환합니다."""
 
     try:
         return enum_type(value).value
@@ -54,7 +54,7 @@ def coerce_code(enum_type: type[E], value: E | str, field: str) -> str:
 
 
 class CoordinateSystem(KexCode):
-    """Coordinate systems exposed by KEX-related APIs."""
+    """KEX 관련 API에서 노출되는 좌표계."""
 
     WGS84 = "WGS84"
     KATEC = "KATEC"

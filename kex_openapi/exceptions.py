@@ -1,4 +1,4 @@
-"""Exception hierarchy for kex-openapi."""
+"""kex-openapi 예외 계층."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from typing import Any
 
 
 class KexError(Exception):
-    """Base class for all kex-openapi errors."""
+    """모든 kex-openapi 예외의 공통 기반 클래스."""
 
     def __init__(
         self,
@@ -30,52 +30,52 @@ class KexError(Exception):
 
 
 class KexAuthError(KexError):
-    """Raised when an API key is missing, invalid, expired, or unauthorized."""
+    """API 키가 없거나, 잘못됐거나, 만료됐거나, 권한이 없을 때 발생합니다."""
 
 
 class KexQuotaExceededError(KexError):
-    """Raised when the API reports a request limit violation."""
+    """API가 호출 한도 초과를 보고할 때 발생합니다."""
 
 
 class KexBadRequestError(KexError):
-    """Raised when the request is malformed or rejected."""
+    """요청 형식이 잘못됐거나 거부됐을 때 발생합니다."""
 
 
 class KexMissingParameterError(KexBadRequestError):
-    """Raised when the provider reports a missing mandatory parameter."""
+    """제공자가 필수 파라미터 누락을 보고할 때 발생합니다."""
 
 
 class KexInvalidParameterError(KexBadRequestError):
-    """Raised when a local or remote parameter value is invalid."""
+    """로컬 또는 원격 파라미터 값이 유효하지 않을 때 발생합니다."""
 
 
 class KexNotFoundError(KexError):
-    """Raised when the provider reports no matching data."""
+    """제공자가 조건에 맞는 데이터가 없다고 보고할 때 발생합니다."""
 
 
 class KexServerError(KexError):
-    """Raised for provider-side or gateway failures."""
+    """제공자 서버 또는 게이트웨이 장애일 때 발생합니다."""
 
 
 class KexServiceUnavailableError(KexServerError):
-    """Raised for temporary provider unavailability."""
+    """제공자 서비스를 일시적으로 사용할 수 없을 때 발생합니다."""
 
 
 class KexParseError(KexError):
-    """Raised when a response cannot be parsed in the expected shape."""
+    """응답을 예상한 형태로 파싱할 수 없을 때 발생합니다."""
 
 
 class KexNetworkError(KexError):
-    """Raised for network-level failures."""
+    """네트워크 계층 장애일 때 발생합니다."""
 
 
 class KexTimeoutError(KexNetworkError):
-    """Raised when a request times out."""
+    """요청 시간이 초과됐을 때 발생합니다."""
 
 
 class KexConnectionError(KexNetworkError):
-    """Raised when a connection cannot be established."""
+    """연결을 만들 수 없을 때 발생합니다."""
 
 
 class KexConfigError(KexError):
-    """Raised when the client is missing required local configuration."""
+    """클라이언트에 필요한 로컬 설정이 없을 때 발생합니다."""
