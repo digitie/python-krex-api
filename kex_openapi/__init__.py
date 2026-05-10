@@ -1,6 +1,6 @@
 """한국도로공사 OpenAPI 비공식 Python 클라이언트."""
 
-from pykrtour import AddressRegion, PlaceCoordinate
+from pykrtour import Address, PlaceCoordinate
 
 from .client import KexClient
 from .codes import (
@@ -49,7 +49,7 @@ from .models import (
 )
 
 __all__ = [
-    "AddressRegion",
+    "Address",
     "CarType",
     "CongestionLevel",
     "CoordinateSystem",

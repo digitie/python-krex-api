@@ -8,12 +8,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, TypeVar
 
-from pykrtour import (
-    AddressRegion,
-    PlaceCoordinate,
-    address_region_from_mapping,
-    address_region_from_text,
-)
+from pykrtour import Address, PlaceCoordinate
 
 from ._convert import (
     strip_or_none,
@@ -608,7 +603,6 @@ def _rest_area(row: dict[str, Any]) -> RestArea:
 
 
 def _rest_area_route_facility(row: dict[str, Any]) -> RestAreaRouteFacility:
-    address = strip_or_none(_get(row, "svarAddr", "address"))
     return RestAreaRouteFacility(
         route_code=strip_or_none(_get(row, "routeCode")),
         service_area_code=str(_required(row, "serviceAreaCode")),
@@ -617,8 +611,7 @@ def _rest_area_route_facility(row: dict[str, Any]) -> RestAreaRouteFacility:
         direction=strip_or_none(_get(row, "direction")),
         service_area_name=strip_or_none(_get(row, "serviceAreaName")),
         phone_number=strip_or_none(_get(row, "telNo", "phoneNumber", "tel")),
-        address=address,
-        address_region=_address_region_from_row(row, address),
+        address=Address.from_mapping(row),
         brand=strip_or_none(_get(row, "brand")),
         convenience=strip_or_none(_get(row, "convenience")),
         has_maintenance=to_bool_yn(_get(row, "maintenanceYn")),
@@ -629,7 +622,6 @@ def _rest_area_route_facility(row: dict[str, Any]) -> RestAreaRouteFacility:
 
 
 def _rest_area_fuel_price(row: dict[str, Any]) -> RestAreaFuelPrice:
-    address = strip_or_none(_get(row, "svarAddr", "address"))
     return RestAreaFuelPrice(
         route_code=strip_or_none(_get(row, "routeCode")),
         service_area_code=str(_required(row, "serviceAreaCode")),
@@ -640,8 +632,7 @@ def _rest_area_fuel_price(row: dict[str, Any]) -> RestAreaFuelPrice:
         has_lpg=to_bool_yn(_get(row, "lpgYn")),
         service_area_name=strip_or_none(_get(row, "serviceAreaName")),
         phone_number=strip_or_none(_get(row, "telNo", "phoneNumber", "tel")),
-        address=address,
-        address_region=_address_region_from_row(row, address),
+        address=Address.from_mapping(row),
         gasoline_price=to_int_or_none(_get(row, "gasolinePrice")),
         diesel_price=to_int_or_none(_get(row, "diselPrice", "dieselPrice")),
         lpg_price=to_int_or_none(_get(row, "lpgPrice")),
@@ -653,7 +644,6 @@ def _rest_area_weather(row: dict[str, Any]) -> RestAreaWeather:
     x = _weather_float_or_none(_get(row, "xValue", "x"))
     y = _weather_float_or_none(_get(row, "yValue", "y"))
     coordinate = _place_coordinate_from_xy(x, y)
-    address = strip_or_none(_get(row, "addr", "address"))
     return RestAreaWeather(
         observed_at=_parse_rest_area_weather_observed_at(
             _required(row, "sdate"),
@@ -668,8 +658,7 @@ def _rest_area_weather(row: dict[str, Any]) -> RestAreaWeather:
         direction_code=strip_or_none(_get(row, "updownTypeCode", "directionCode")),
         lat=coordinate.lat if coordinate else None,
         lon=coordinate.lon if coordinate else None,
-        address=address,
-        address_region=_address_region_from_row(row, address),
+        address=Address.from_mapping(row),
         measurement_station=strip_or_none(_get(row, "measurement", "measurementStation")),
         weather=strip_or_none(_get(row, "weatherContents", "weather")),
         temperature=_weather_float_or_none(_get(row, "tempValue", "temperature")),
@@ -807,23 +796,6 @@ def _place_coordinate_from_lon_lat(lon: float, lat: float) -> PlaceCoordinate | 
     if 124 <= lon <= 132 and 33 <= lat <= 39:
         return PlaceCoordinate(lon=lon, lat=lat)
     return None
-
-
-def _address_region_from_row(row: dict[str, Any], address: str | None) -> AddressRegion | None:
-    mapped = address_region_from_mapping(row)
-    parsed = address_region_from_text(address) if address is not None else None
-    if mapped is None:
-        return parsed
-    if parsed is None:
-        return mapped
-    return AddressRegion(
-        sigungu_code=mapped.effective_sigungu_code,
-        legal_dong_code=mapped.legal_dong_code,
-        sido_name=mapped.sido_name or parsed.sido_name,
-        sigungu_name=mapped.sigungu_name or parsed.sigungu_name,
-        eup_myeon_dong_name=mapped.eup_myeon_dong_name or parsed.eup_myeon_dong_name,
-        ri_name=mapped.ri_name or parsed.ri_name,
-    )
 
 
 def _raw_coordinate(x: float | None, y: float | None) -> RawCoordinate | None:

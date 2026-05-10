@@ -49,9 +49,9 @@ Initial package scaffold and first implementation pass.
   live-verified API status.
 - `CoordinateSystem`, `pykrtour.PlaceCoordinate`, and `RawCoordinate` public
   coordinate types.
-- `pykrtour.AddressRegion` public address-region type on rest-area address
-  models. KEX address strings populate region names, while provider legal-dong
-  codes are preserved when present.
+- `pykrtour.Address` public address type on rest-area address models. KEX
+  address strings populate the `Address` display value and region names, while
+  provider legal-dong codes are preserved when present.
 - `Page` sequence-like helpers: iteration, `len(page)`, truthiness, `first`,
   and `is_empty`.
 - Standard `coordinate: PlaceCoordinate | None` fields for rest areas,

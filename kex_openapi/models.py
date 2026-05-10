@@ -7,7 +7,7 @@ from datetime import date, datetime
 from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict
-from pykrtour import AddressRegion, PlaceCoordinate
+from pykrtour import Address, PlaceCoordinate
 
 from .codes import (
     CarType,
@@ -149,8 +149,7 @@ class RestAreaRouteFacility(KexModel):
     direction: str | None
     service_area_name: str | None
     phone_number: str | None
-    address: str | None = None
-    address_region: AddressRegion | None = None
+    address: Address | None = None
     brand: str | None = None
     convenience: str | None = None
     has_maintenance: bool | None
@@ -169,8 +168,7 @@ class RestAreaFuelPrice(KexModel):
     has_lpg: bool | None
     service_area_name: str | None
     phone_number: str | None
-    address: str | None = None
-    address_region: AddressRegion | None = None
+    address: Address | None = None
     gasoline_price: int | None
     diesel_price: int | None
     lpg_price: int | None
@@ -188,8 +186,7 @@ class RestAreaWeather(KexModel):
     direction_code: str | None
     lat: float | None
     lon: float | None
-    address: str | None
-    address_region: AddressRegion | None = None
+    address: Address | None
     measurement_station: str | None
     weather: str | None
     temperature: float | None

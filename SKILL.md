@@ -95,8 +95,8 @@ Never rely on HTTP status alone. Inspect body-level result codes.
 - Expose standard WGS84 positions as `pykrtour.PlaceCoordinate(lon, lat)`. Keep legacy
   `lat`/`lon` and `x`/`y` fields when already public, but prefer `coordinate`
   for new code.
-- Expose address-region data as `pykrtour.AddressRegion`. Free-form address
-  strings may fill region names, but legal-dong codes must come from provider
+- Expose address data as `pykrtour.Address`. Free-form address strings may fill
+  display text and region names, but legal-dong codes must come from provider
   fields or verified external lookup results such as VWorld boundary data.
 - Preserve ambiguous raw coordinates as `RawCoordinate` with a
   `CoordinateSystem`.

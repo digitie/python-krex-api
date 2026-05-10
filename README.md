@@ -261,20 +261,21 @@ if tollgate and tollgate.raw_coordinate:
 
 ---
 
-## 주소 행정구역
+## 주소
 
-휴게소 주소가 있는 모델은 원문 주소 문자열을 `address`에 보존하고, 함께 사용할 수 있는
-행정구역은 `pykrtour.AddressRegion`으로 `address_region`에 제공합니다.
+휴게소 주소가 있는 모델은 `address`에 `pykrtour.Address`를 제공합니다. 원문 주소
+문자열은 `address.display_address`나 `address.address`로 확인하고, 함께 사용할 수 있는
+행정구역은 `address.effective_region`에서 확인합니다.
 
 ```python
 facility = client.restarea.route_facilities().first
-if facility and facility.address_region:
-    facility.address_region.administrative_label
-    facility.address_region.legal_dong_code_value
+if facility and facility.address:
+    facility.address.display_address
+    facility.address.legal_dong_code
 ```
 
 KEX 응답의 주소 문자열만으로는 10자리 법정동코드를 안전하게 확정하지 않습니다.
-원문 row에 `legal_dong_code`, `ADM_CD` 같은 코드가 있으면 `AddressRegion`에 보존하고,
+원문 row에 `legal_dong_code`, `ADM_CD` 같은 코드가 있으면 `Address`에 보존하고,
 코드가 없으면 시도/시군구/읍면동 이름까지만 채웁니다. 좌표 기반 법정동코드가 필요하면
 `pyvworld`의 법정동 경계 데이터(`LT_C_ADEMD_INFO`) 조회 결과를 별도로 결합하세요.
 
