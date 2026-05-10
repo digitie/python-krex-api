@@ -1,9 +1,9 @@
-"""Public Pydantic models returned by kex-openapi."""
+"""kex-openapi가 반환하는 공개 Pydantic 모델."""
 
 from __future__ import annotations
 
 from collections.abc import Iterator
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, field_validator
@@ -22,7 +22,7 @@ T = TypeVar("T")
 
 
 class KexModel(BaseModel):
-    """Base class for immutable public response models."""
+    """불변 공개 응답 모델의 공통 기반 클래스."""
 
     model_config = ConfigDict(frozen=True, use_enum_values=False)
 
@@ -53,10 +53,11 @@ class Page(KexModel, Generic[T]):
 
 
 class GeoPoint(KexModel):
-    """Standard WGS84 longitude/latitude point.
+    """표준 WGS84 경도/위도 좌표.
 
-    `lon` comes first to match GeoJSON and most GIS APIs. The `latlon` property
-    is available for UI libraries that expect `(lat, lon)`.
+    GeoJSON과 대부분의 GIS API 순서에 맞춰 `lon`을 먼저 둡니다.
+    `(lat, lon)` 순서를 기대하는 UI 라이브러리에는 `latlon` 속성을
+    사용할 수 있습니다.
     """
 
     lon: float
@@ -216,6 +217,43 @@ class RestAreaFuelPrice(KexModel):
     diesel_price: int | None
     lpg_price: int | None
     raw: dict[str, Any]
+
+
+class RestAreaWeather(KexModel):
+    observed_at: datetime
+    sdate: str
+    std_hour: str
+    unit_code: str
+    unit_name: str
+    route_no: str | None
+    route_name: str | None
+    direction_code: str | None
+    lat: float | None
+    lon: float | None
+    address: str | None
+    measurement_station: str | None
+    weather: str | None
+    temperature: float | None
+    humidity: float | None
+    wind_speed: float | None
+    wind_direction_code: str | None
+    rainfall: float | None
+    rainfall_strength: float | None
+    new_snow: float | None
+    snow: float | None
+    cloud: float | None
+    dew_point: float | None
+    raw: dict[str, Any]
+    coordinate: GeoPoint | None = None
+    raw_coordinate: RawCoordinate | None = None
+
+    @property
+    def longitude(self) -> float | None:
+        return self.lon
+
+    @property
+    def latitude(self) -> float | None:
+        return self.lat
 
 
 class FoodPrice(KexModel):

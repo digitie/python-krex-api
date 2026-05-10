@@ -32,9 +32,9 @@ Read the documents that match your task:
 ## Adding An Endpoint
 
 1. Add or confirm the endpoint entry in `endpoints.md`.
-2. Add code enums in `kex_openapi.codes` if the endpoint uses stable public codes.
-3. Add a dataclass in `kex_openapi.models` only when the response schema is known.
-4. Add the client method in the correct namespace in `kex_openapi.client`.
+2. Add code enums in `kex_openapi/codes.py` if the endpoint uses stable public codes.
+3. Add a Pydantic model in `kex_openapi/models.py` only when the response schema is known.
+4. Add the client method in the correct namespace in `kex_openapi/client.py`.
 5. Add tests for query parameters, response parsing, single-object normalization,
    provider errors, malformed shapes, and local validation.
 6. Update README examples only for endpoints that users should call directly.
@@ -42,6 +42,18 @@ Read the documents that match your task:
 If the path or schema is not verified, return `Page[dict]` and document that
 status clearly. We can always make a typed model later; removing a wrong public
 model is harder.
+
+## Porting From Sibling Libraries
+
+When `pykma`, `pyopinet`, or another sibling project already has a tested
+implementation for the same provider endpoint, prefer porting that behavior
+directly into the existing `KexClient` namespace. Do not add an extra standalone
+wrapper/client just to mirror the source library if the endpoint already fits
+`kex_openapi/client.py`.
+
+This may be a larger patch than the smallest local edit, but it keeps proven
+field mappings, sentinel handling, and validation rules intact while avoiding
+duplicated abstractions.
 
 ## Testing
 
@@ -89,6 +101,18 @@ Common placements:
 - `codes.md`: public code tables.
 - `error-codes.md`: exception mapping.
 - `SKILL.md` / `AGENTS.md`: workflow rules and repeated mistakes.
+
+Style rules:
+
+- Document file locations as project-root-relative paths such as
+  `kex_openapi/client.py`, not local absolute paths.
+- Write Python docstrings and explanatory comments in Korean unless quoting
+  provider text or preserving public code/protocol identifiers.
+- In the Windows workspace, `rg.exe` may fail with `Access is denied`; use
+  PowerShell enumeration with `Select-String` as the fallback.
+- Read UTF-8 Markdown with explicit PowerShell encoding, for example
+  `Get-Content -Path README.md -Encoding utf8`, before assuming Korean text is
+  corrupted.
 
 ## Security
 

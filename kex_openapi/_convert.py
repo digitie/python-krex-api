@@ -1,4 +1,4 @@
-"""Small conversion helpers for API response boundaries."""
+"""API 응답 경계에서 쓰는 작은 변환 헬퍼."""
 
 from __future__ import annotations
 

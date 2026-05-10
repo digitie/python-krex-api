@@ -1,10 +1,11 @@
-"""High-level client for Korea Expressway Corporation OpenAPIs."""
+"""한국도로공사 OpenAPI 고수준 클라이언트."""
 
 from __future__ import annotations
 
 import os
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, TypeVar
 
 from ._convert import (
@@ -39,6 +40,7 @@ from .models import (
     RestArea,
     RestAreaFuelPrice,
     RestAreaRouteFacility,
+    RestAreaWeather,
     Route,
     TollFee,
     Tollgate,
@@ -48,14 +50,15 @@ from .models import (
 
 T = TypeVar("T")
 E = TypeVar("E", bound=KexCode)
+KST = timezone(timedelta(hours=9), "KST")
 
 
 class KexClient:
-    """Client entrypoint for KEX OpenAPIs.
+    """KEX OpenAPI 호출 진입점.
 
-    The client exposes endpoint namespaces (`traffic`, `tollfee`, `restarea`,
-    `facility`, `admin`, and `reference`) to keep method names close to the
-    documentation in `endpoints.md`.
+    엔드포인트 문서(`endpoints.md`)와 메서드 이름이 비슷하게 보이도록
+    `traffic`, `tollfee`, `restarea`, `facility`, `admin`, `reference`
+    네임스페이스를 제공합니다.
     """
 
     def __init__(
@@ -316,6 +319,40 @@ class RestareaNamespace:
             _rest_area,
             standard=True,
         )
+
+    def weather(
+        self,
+        *,
+        sdate: str | date | datetime,
+        std_hour: str | int,
+    ) -> Page[RestAreaWeather]:
+        return self._client._page_ex(
+            "/openapi/restinfo/restWeatherList",
+            {"sdate": _format_sdate(sdate), "stdHour": _format_hour(std_hour)},
+            _rest_area_weather,
+        )
+
+    def latest_weather(
+        self,
+        *,
+        when: datetime | None = None,
+        lookback_hours: int = 48,
+    ) -> Page[RestAreaWeather]:
+        if lookback_hours < 0:
+            raise ValueError("lookback_hours must be >= 0")
+        base = _as_kst(when) if when is not None else datetime.now(KST)
+        base = base.replace(minute=0, second=0, microsecond=0)
+        last_raw: dict[str, Any] | None = None
+        for offset in range(lookback_hours + 1):
+            target = base - timedelta(hours=offset)
+            try:
+                page = self.weather(sdate=target, std_hour=target.hour)
+            except KexNotFoundError:
+                continue
+            if page.items:
+                return page
+            last_raw = page.raw
+        return Page(items=(), raw=last_raw)
 
     def food_price(self, **params: Any) -> Page[FoodPrice]:
         return self._client._page_ex("/openapi/restinfo/restMenuList", params, _food_price)
@@ -602,6 +639,45 @@ def _rest_area_fuel_price(row: dict[str, Any]) -> RestAreaFuelPrice:
     )
 
 
+def _rest_area_weather(row: dict[str, Any]) -> RestAreaWeather:
+    x = _weather_float_or_none(_get(row, "xValue", "x"))
+    y = _weather_float_or_none(_get(row, "yValue", "y"))
+    coordinate = _wgs84_from_xy(x, y)
+    return RestAreaWeather(
+        observed_at=_parse_rest_area_weather_observed_at(
+            _required(row, "sdate"),
+            _required(row, "stdHour"),
+        ),
+        sdate=_format_sdate(_required(row, "sdate")),
+        std_hour=_format_hour(_required(row, "stdHour")),
+        unit_code=str(_required(row, "unitCode")).strip(),
+        unit_name=str(_required(row, "unitName")).strip(),
+        route_no=strip_or_none(_get(row, "routeNo")),
+        route_name=strip_or_none(_get(row, "routeName")),
+        direction_code=strip_or_none(_get(row, "updownTypeCode", "directionCode")),
+        lat=coordinate.lat if coordinate else None,
+        lon=coordinate.lon if coordinate else None,
+        address=strip_or_none(_get(row, "addr", "address")),
+        measurement_station=strip_or_none(_get(row, "measurement", "measurementStation")),
+        weather=strip_or_none(_get(row, "weatherContents", "weather")),
+        temperature=_weather_float_or_none(_get(row, "tempValue", "temperature")),
+        humidity=_weather_float_or_none(_get(row, "humidityValue", "humidity")),
+        wind_speed=_weather_float_or_none(_get(row, "windValue", "windSpeed")),
+        wind_direction_code=strip_or_none(_get(row, "windContents", "windDirectionCode")),
+        rainfall=_weather_float_or_none(_get(row, "rainfallValue", "rainfall")),
+        rainfall_strength=_weather_float_or_none(
+            _get(row, "rainfallstrengthValue", "rainfallStrengthValue", "rainfallStrength"),
+        ),
+        new_snow=_weather_float_or_none(_get(row, "newsnowValue", "newSnow")),
+        snow=_weather_float_or_none(_get(row, "snowValue", "snow")),
+        cloud=_weather_float_or_none(_get(row, "cloudValue", "cloud")),
+        dew_point=_weather_float_or_none(_get(row, "dewValue", "dewPoint")),
+        raw=row,
+        coordinate=coordinate,
+        raw_coordinate=_raw_coordinate(x, y),
+    )
+
+
 def _food_price(row: dict[str, Any]) -> FoodPrice:
     return FoodPrice(
         service_area_code=strip_or_none(_get(row, "serviceAreaCode")),
@@ -623,6 +699,48 @@ def _clean(params: dict[str, Any]) -> dict[str, Any]:
 def _require(value: str | None, field: str) -> None:
     if not value:
         raise KexInvalidParameterError(f"{field} must not be empty")
+
+
+def _as_kst(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=KST)
+    return value.astimezone(KST)
+
+
+def _format_sdate(value: Any) -> str:
+    if isinstance(value, datetime):
+        return _as_kst(value).strftime("%Y%m%d")
+    if isinstance(value, date):
+        return value.strftime("%Y%m%d")
+    text = str(value).strip()
+    if len(text) != 8 or not text.isdigit():
+        raise ValueError("sdate must be YYYYMMDD")
+    return text
+
+
+def _format_hour(value: Any) -> str:
+    text = str(value).strip()
+    if text == "":
+        raise ValueError("std_hour must not be empty")
+    hour = int(text)
+    if not 0 <= hour <= 23:
+        raise ValueError("std_hour must be between 0 and 23")
+    return f"{hour:02d}"
+
+
+def _parse_rest_area_weather_observed_at(sdate: Any, std_hour: Any) -> datetime:
+    raw = f"{_format_sdate(sdate)}{_format_hour(std_hour)}"
+    return datetime.strptime(raw, "%Y%m%d%H").replace(tzinfo=KST)
+
+
+def _weather_float_or_none(value: Any) -> float | None:
+    try:
+        number = to_float_or_none(value)
+    except ValueError:
+        return None
+    if number is None or number <= -99.0:
+        return None
+    return number
 
 
 def _optional_code(enum_type: type[E], value: E | str | None, field: str) -> str | None:

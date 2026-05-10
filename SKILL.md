@@ -22,13 +22,30 @@ The public package import name is `kex_openapi`; the distribution name is
 - Read `endpoints.md`, `codes.md`, and `error-codes.md` before changing endpoint behavior.
 - Read `API_COVERAGE.md` before claiming an API is supported or live-verified.
 - Keep the implementation shape aligned with `pykma` and `pyopinet`:
-  `client.py`, `_http.py`, `_convert.py`, `codes.py`, `models.py`, `exceptions.py`.
+  `kex_openapi/client.py`, `kex_openapi/_http.py`, `kex_openapi/_convert.py`,
+  `kex_openapi/codes.py`, `kex_openapi/models.py`, `kex_openapi/exceptions.py`.
 - Do not add live network calls to ordinary tests.
 - Do not commit API keys or generated caches.
+- Write file locations in documents as project-root-relative paths, for example
+  `kex_openapi/client.py`; avoid local absolute paths.
+- Write Python docstrings and explanatory comments in Korean unless preserving
+  provider text, public code identifiers, or protocol literals.
+- In this Windows workspace, `rg.exe` may be present but fail with
+  `Access is denied`. Use PowerShell enumeration as the fallback:
+  `Get-ChildItem -Recurse -File | Select-String -Pattern "..."`.
+- When reading Markdown or other UTF-8 text in PowerShell, pass
+  `-Encoding utf8` to `Get-Content` or `Select-String` to avoid garbled Korean
+  output.
 - Prefer immutable Pydantic models for public return models and `StrEnum` for
   stable code values.
 - If an endpoint path is uncertain, expose it as `Page[dict]` first and document
   the uncertainty instead of pretending the schema is stable.
+- When `pykma`, `pyopinet`, or another sibling library already contains a
+  working implementation for the same provider endpoint, port the tested
+  behavior into the existing `KexClient` namespace. Avoid a new standalone
+  wrapper/client unless the provider, authentication model, or response shape
+  truly needs a separate abstraction. This direct-port preference may be more
+  important than keeping the patch to the smallest possible local edit.
 
 ## API Key Rules
 
@@ -103,6 +120,8 @@ Update documentation in the same change:
 - `codes.md`: add any stable code table used by public parameters or models.
 - `error-codes.md`: add newly observed provider error codes.
 - `AGENTS.md` or this `SKILL.md`: add any repeated mistake discovered during implementation.
+- `CONTRIBUTING.md`, `AGENTS.md`, and this `SKILL.md`: update documentation
+  style rules such as path notation or Python docstring language.
 
 ## Repeated Mistakes To Avoid
 
@@ -113,18 +132,25 @@ Update documentation in the same change:
 - Do not add endpoint paths from guesses without documenting that they are unverified.
 - Do not make tests depend on current public portal data.
 - Do not parse money or traffic values by hand at call sites. Keep conversion in
-  `_convert.py` or model parser helpers.
+  `kex_openapi/_convert.py` or model parser helpers.
 - Do not expose a new Pydantic model until at least one realistic fixture or fake
   response locks the expected field names.
 - Do not introduce ad-hoc `(lat, lon)` tuples in public models. Use
   `GeoPoint.latlon` only as a convenience alias.
 - Do not assume `data.ex.co.kr` always uses `list`; real responses can use an
   endpoint-named top-level array such as `trafficIc`.
+- Do not create a second wrapper layer for a provider endpoint that already fits
+  the existing `KexClient` namespace; port the sibling-library parser/model
+  behavior directly and document any intentional differences.
 - Do not use `payload.get("count") or ...` for counts. Real empty responses use
   `count=0`, and that must stay `0`.
 - Do not let API keys appear in model repr output.
 - Do not use dataclass-only helpers such as `asdict()` or `__post_init__`;
   use Pydantic validators and `model_dump()` instead.
+- Do not retry `rg` repeatedly after an `Access is denied` failure in this
+  workspace; switch to PowerShell file enumeration immediately.
+- Do not diagnose Korean Markdown as broken before checking it with explicit
+  UTF-8 encoding in PowerShell.
 
 ## Release Checklist
 

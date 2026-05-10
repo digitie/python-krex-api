@@ -27,6 +27,7 @@ an explicit backlog for broader official coverage.
 | `tollfee.tollgate_list()` | `data.ex.co.kr` | `Page[Tollgate]` | Yes | No | Path returned 404 in an earlier live probe; public model exists but path is unverified. |
 | `restarea.route_facilities()` | `data.ex.co.kr` | `Page[RestAreaRouteFacility]` | Yes | Yes | Request URL from KEX OpenAPI guide: `/openapi/business/serviceAreaRoute`; real payload can include `serviceAreaName=None` and O/X flags. |
 | `restarea.list_all()` | `data.go.kr` | `Page[RestArea]` | Yes | No | Standard-data endpoint uses `type=json`, not `_type=json`. |
+| `restarea.weather()` / `restarea.latest_weather()` | `data.ex.co.kr` | `Page[RestAreaWeather]` | Yes | No | Ported from `pykma` expressway weather support; `latest_weather()` looks back over `/openapi/restinfo/restWeatherList`. |
 | `restarea.fuel_prices()` | `data.ex.co.kr` | `Page[RestAreaFuelPrice]` | Yes | Yes | Request URL from KEX OpenAPI guide: `/openapi/business/curStateStation`; real prices include `원` suffix. |
 | `restarea.convenience_facilities()` | `data.ex.co.kr` | `Page[dict]` | Yes | Yes | Request URL from KEX OpenAPI guide: `/openapi/business/conveniServiceArea`; kept raw until schema is promoted. |
 | `restarea.food_price()` | `data.ex.co.kr` | `Page[FoodPrice]` | Yes | No | Path returned 404 in an earlier live probe; keep as unverified. |
@@ -46,9 +47,9 @@ an explicit backlog for broader official coverage.
 
 | Category | Count |
 |---|---:|
-| Methods documented in `endpoints.md` | 24 |
-| Methods implemented in `KexClient` namespaces | 24 |
-| Methods with typed public models | 9 |
+| Methods documented in `endpoints.md` | 26 |
+| Methods implemented in `KexClient` namespaces | 26 |
+| Methods with typed public models | 10 |
 | Methods returning raw `dict` records | 13 |
 | Local reference helpers | 2 |
 | Methods live-verified against provider | 5 |
@@ -82,7 +83,7 @@ Use these states while expanding coverage:
 |---|---|
 | `planned` | Known official dataset, no wrapper yet. |
 | `raw-wrapper` | Method exists and returns `Page[dict]`; path may still need live verification. |
-| `typed-wrapper` | Method returns public dataclasses/enums and has unit tests for parsing. |
+| `typed-wrapper` | Method returns public Pydantic models/enums and has unit tests for parsing. |
 | `live-verified` | Real provider call passed and response quirks are documented. |
 | `deprecated-or-broken` | Provider path is known to return 404/405/HTML or has been replaced. |
 

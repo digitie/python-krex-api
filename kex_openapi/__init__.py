@@ -1,4 +1,4 @@
-"""Unofficial Python client for Korea Expressway Corporation OpenAPIs."""
+"""한국도로공사 OpenAPI 비공식 Python 클라이언트."""
 
 from .client import KexClient
 from .codes import (
@@ -39,6 +39,7 @@ from .models import (
     RestArea,
     RestAreaFuelPrice,
     RestAreaRouteFacility,
+    RestAreaWeather,
     Route,
     TollFee,
     Tollgate,
@@ -78,6 +79,7 @@ __all__ = [
     "RestArea",
     "RestAreaFuelPrice",
     "RestAreaRouteFacility",
+    "RestAreaWeather",
     "RoadOperator",
     "Route",
     "TCSType",
