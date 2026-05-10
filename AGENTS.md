@@ -18,8 +18,8 @@ This repository follows the same working shape as `pykma` and `pyopinet`.
   corrupted in PowerShell output.
 - Keep public return values typed Pydantic models or enum values, not raw strings,
   whenever the field has a stable meaning.
-- Use `GeoPoint(lon, lat)` for public WGS84 coordinates and expose raw
-  ambiguous coordinates separately.
+- Use `pykrtour.PlaceCoordinate(lon, lat)` for public WGS84 coordinates and
+  expose raw ambiguous coordinates separately.
 - Preserve code-like identifiers exactly as strings when leading zeroes matter
   (`routeNo`, `unitCode`, branch codes, office codes).
 - Handle `list` and single `dict` item shapes. Korean public APIs often switch

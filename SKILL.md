@@ -92,7 +92,7 @@ Never rely on HTTP status alone. Inspect body-level result codes.
 - Convert Y/N fields to `bool | None`.
 - Keep public models based on `KexModel` so external callers can rely on
   `model_dump()`, `model_validate()`, and `model_json_schema()`.
-- Expose standard WGS84 positions as `GeoPoint(lon, lat)`. Keep legacy
+- Expose standard WGS84 positions as `pykrtour.PlaceCoordinate(lon, lat)`. Keep legacy
   `lat`/`lon` and `x`/`y` fields when already public, but prefer `coordinate`
   for new code.
 - Preserve ambiguous raw coordinates as `RawCoordinate` with a
@@ -136,7 +136,7 @@ Update documentation in the same change:
 - Do not expose a new Pydantic model until at least one realistic fixture or fake
   response locks the expected field names.
 - Do not introduce ad-hoc `(lat, lon)` tuples in public models. Use
-  `GeoPoint.latlon` only as a convenience alias.
+  `PlaceCoordinate.latlon` only as a convenience alias.
 - Do not assume `data.ex.co.kr` always uses `list`; real responses can use an
   endpoint-named top-level array such as `trafficIc`.
 - Do not create a second wrapper layer for a provider endpoint that already fits

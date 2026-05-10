@@ -6,7 +6,8 @@ from collections.abc import Iterator
 from datetime import date, datetime
 from typing import Any, Generic, TypeVar
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict
+from pykrtour import PlaceCoordinate
 
 from .codes import (
     CarType,
@@ -50,51 +51,6 @@ class Page(KexModel, Generic[T]):
     @property
     def is_empty(self) -> bool:
         return not self.items
-
-
-class GeoPoint(KexModel):
-    """표준 WGS84 경도/위도 좌표.
-
-    GeoJSON과 대부분의 GIS API 순서에 맞춰 `lon`을 먼저 둡니다.
-    `(lat, lon)` 순서를 기대하는 UI 라이브러리에는 `latlon` 속성을
-    사용할 수 있습니다.
-    """
-
-    lon: float
-    lat: float
-
-    @field_validator("lon")
-    @classmethod
-    def _validate_lon(cls, value: float) -> float:
-        if not -180 <= value <= 180:
-            raise ValueError("lon must be between -180 and 180")
-        return value
-
-    @field_validator("lat")
-    @classmethod
-    def _validate_lat(cls, value: float) -> float:
-        if not -90 <= value <= 90:
-            raise ValueError("lat must be between -90 and 90")
-        return value
-
-    @property
-    def longitude(self) -> float:
-        return self.lon
-
-    @property
-    def latitude(self) -> float:
-        return self.lat
-
-    @property
-    def lonlat(self) -> tuple[float, float]:
-        return (self.lon, self.lat)
-
-    @property
-    def latlon(self) -> tuple[float, float]:
-        return (self.lat, self.lon)
-
-    def as_geojson_position(self) -> tuple[float, float]:
-        return self.lonlat
 
 
 class RawCoordinate(KexModel):
@@ -166,7 +122,7 @@ class Tollgate(KexModel):
     head_office_code: str | None
     branch_office_code: str | None
     raw: dict[str, Any]
-    coordinate: GeoPoint | None = None
+    coordinate: PlaceCoordinate | None = None
     raw_coordinate: RawCoordinate | None = None
 
 
@@ -182,7 +138,7 @@ class RestArea(KexModel):
     phone_number: str | None
     reference_date: date | None
     raw: dict[str, Any]
-    coordinate: GeoPoint | None = None
+    coordinate: PlaceCoordinate | None = None
 
 
 class RestAreaRouteFacility(KexModel):
@@ -244,7 +200,7 @@ class RestAreaWeather(KexModel):
     cloud: float | None
     dew_point: float | None
     raw: dict[str, Any]
-    coordinate: GeoPoint | None = None
+    coordinate: PlaceCoordinate | None = None
     raw_coordinate: RawCoordinate | None = None
 
     @property

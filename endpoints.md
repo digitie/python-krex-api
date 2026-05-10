@@ -384,7 +384,7 @@ print(res.items[0].traffic_volume)
 | `routeNo` | `route_no` | `str | None` | 노선번호 |
 | `routeName` | `route_name` | `str | None` | 노선명 |
 | `updownTypeCode` | `direction_code` | `str | None` | 방향 코드 |
-| `xValue` / `yValue` | `coordinate` | `GeoPoint | None` | 유효한 WGS84 좌표 |
+| `xValue` / `yValue` | `coordinate` | `PlaceCoordinate | None` | 유효한 WGS84 좌표 |
 | `addr` | `address` | `str | None` | 주소 |
 | `measurement` | `measurement_station` | `str | None` | 관측 지점명 |
 | `weatherContents` | `weather` | `str | None` | 날씨 설명 |

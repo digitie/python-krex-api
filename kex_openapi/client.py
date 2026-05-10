@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, TypeVar
 
+from pykrtour import PlaceCoordinate
+
 from ._convert import (
     strip_or_none,
     to_bool_yn,
@@ -33,7 +35,6 @@ from .codes import (
 from .exceptions import KexInvalidParameterError, KexNotFoundError, KexParseError
 from .models import (
     FoodPrice,
-    GeoPoint,
     Incident,
     Page,
     RawCoordinate,
@@ -574,13 +575,13 @@ def _tollgate(row: dict[str, Any]) -> Tollgate:
         head_office_code=strip_or_none(_get(row, "headOfficeCode")),
         branch_office_code=strip_or_none(_get(row, "branchOfficeCode")),
         raw=row,
-        coordinate=_geo_point_from_row(row) or _wgs84_from_xy(x, y),
+        coordinate=_place_coordinate_from_row(row) or _place_coordinate_from_xy(x, y),
         raw_coordinate=raw_coordinate,
     )
 
 
 def _rest_area(row: dict[str, Any]) -> RestArea:
-    coordinate = _geo_point_from_row(row)
+    coordinate = _place_coordinate_from_row(row)
     return RestArea(
         name=str(_required(row, "restAreaNm", "serviceAreaName")),
         route_name=strip_or_none(_get(row, "routeNm", "routeName")),
@@ -642,7 +643,7 @@ def _rest_area_fuel_price(row: dict[str, Any]) -> RestAreaFuelPrice:
 def _rest_area_weather(row: dict[str, Any]) -> RestAreaWeather:
     x = _weather_float_or_none(_get(row, "xValue", "x"))
     y = _weather_float_or_none(_get(row, "yValue", "y"))
-    coordinate = _wgs84_from_xy(x, y)
+    coordinate = _place_coordinate_from_xy(x, y)
     return RestAreaWeather(
         observed_at=_parse_rest_area_weather_observed_at(
             _required(row, "sdate"),
@@ -771,23 +772,29 @@ def _required(row: dict[str, Any], *names: str) -> Any:
     return value
 
 
-def _geo_point_from_row(row: dict[str, Any]) -> GeoPoint | None:
+def _place_coordinate_from_row(row: dict[str, Any]) -> PlaceCoordinate | None:
+    try:
+        coordinate = PlaceCoordinate.from_mapping(row)
+    except ValueError:
+        coordinate = None
+    if coordinate is not None:
+        return coordinate
     lon = to_float_or_none(_get(row, "lon", "longitude", "lng", "lcLongitude", "경도", "xcoord"))
     lat = to_float_or_none(_get(row, "lat", "latitude", "lcLatitude", "위도", "ycoord"))
     if lon is None or lat is None:
         return None
-    return _wgs84_from_lon_lat(lon, lat)
+    return _place_coordinate_from_lon_lat(lon, lat)
 
 
-def _wgs84_from_xy(x: float | None, y: float | None) -> GeoPoint | None:
+def _place_coordinate_from_xy(x: float | None, y: float | None) -> PlaceCoordinate | None:
     if x is None or y is None:
         return None
-    return _wgs84_from_lon_lat(x, y)
+    return _place_coordinate_from_lon_lat(x, y)
 
 
-def _wgs84_from_lon_lat(lon: float, lat: float) -> GeoPoint | None:
+def _place_coordinate_from_lon_lat(lon: float, lat: float) -> PlaceCoordinate | None:
     if 124 <= lon <= 132 and 33 <= lat <= 39:
-        return GeoPoint(lon=lon, lat=lat)
+        return PlaceCoordinate(lon=lon, lat=lat)
     return None
 
 
@@ -795,6 +802,8 @@ def _raw_coordinate(x: float | None, y: float | None) -> RawCoordinate | None:
     if x is None or y is None:
         return None
     system = (
-        CoordinateSystem.WGS84 if _wgs84_from_xy(x, y) is not None else CoordinateSystem.UNKNOWN
+        CoordinateSystem.WGS84
+        if _place_coordinate_from_xy(x, y) is not None
+        else CoordinateSystem.UNKNOWN
     )
     return RawCoordinate(x=x, y=y, system=system)

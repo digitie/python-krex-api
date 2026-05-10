@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from kex_openapi import CoordinateSystem, GeoPoint, Page, RawCoordinate
+from kex_openapi import CoordinateSystem, Page, PlaceCoordinate, RawCoordinate
 
 
 def test_page_behaves_like_read_only_sequence() -> None:
@@ -26,20 +26,21 @@ def test_empty_page_helpers() -> None:
     assert page.is_empty is True
 
 
-def test_geo_point_standardizes_lon_lat_and_aliases() -> None:
-    point = GeoPoint(lon="127.104", lat="37.332")
+def test_place_coordinate_standardizes_lon_lat_and_aliases() -> None:
+    point = PlaceCoordinate(lon="127.104", lat="37.332")
 
     assert point.lonlat == (127.104, 37.332)
     assert point.latlon == (37.332, 127.104)
     assert point.as_geojson_position() == (127.104, 37.332)
     assert point.longitude == point.lon
     assert point.latitude == point.lat
-    assert point.model_dump() == {"lon": 127.104, "lat": 37.332}
+    assert point.model_dump()["lon"] == 127.104
+    assert point.model_dump()["lat"] == 37.332
 
 
 def test_pydantic_models_are_frozen_and_schema_ready() -> None:
-    point = GeoPoint(lon=127.104, lat=37.332)
-    schema = GeoPoint.model_json_schema()
+    point = PlaceCoordinate(lon=127.104, lat=37.332)
+    schema = PlaceCoordinate.model_json_schema()
 
     with pytest.raises(ValidationError):
         point.lon = 1
@@ -48,11 +49,11 @@ def test_pydantic_models_are_frozen_and_schema_ready() -> None:
     assert schema["properties"]["lat"]["type"] == "number"
 
 
-def test_geo_point_validates_ranges() -> None:
+def test_place_coordinate_validates_ranges() -> None:
     with pytest.raises(ValueError):
-        GeoPoint(lon=181, lat=37)
+        PlaceCoordinate(lon=181, lat=37)
     with pytest.raises(ValueError):
-        GeoPoint(lon=127, lat=91)
+        PlaceCoordinate(lon=127, lat=91)
 
 
 def test_raw_coordinate_defaults_to_unknown_system() -> None:

@@ -47,11 +47,13 @@ Initial package scaffold and first implementation pass.
 - `restarea.disabled_facility()` and `restarea.bus_transit()` raw wrappers.
 - `API_COVERAGE.md` to track documented, implemented, typed, raw, and
   live-verified API status.
-- `CoordinateSystem`, `GeoPoint`, and `RawCoordinate` public types.
+- `CoordinateSystem`, `pykrtour.PlaceCoordinate`, and `RawCoordinate` public
+  coordinate types.
 - `Page` sequence-like helpers: iteration, `len(page)`, truthiness, `first`,
   and `is_empty`.
-- Standard `coordinate: GeoPoint | None` fields for rest areas and tollgates
-  while preserving existing `lat`/`lon` and `x`/`y` fields.
+- Standard `coordinate: PlaceCoordinate | None` fields for rest areas,
+  tollgates, and rest-area weather while preserving existing `lat`/`lon` and
+  `x`/`y` fields.
 - Pydantic v2 public response models with frozen instances, validation,
   `model_dump()`, and JSON schema support.
 - Korean Python docstrings and documentation rules requiring project-relative

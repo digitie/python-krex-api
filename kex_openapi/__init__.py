@@ -1,5 +1,7 @@
 """한국도로공사 OpenAPI 비공식 Python 클라이언트."""
 
+from pykrtour import PlaceCoordinate
+
 from .client import KexClient
 from .codes import (
     CarType,
@@ -31,7 +33,6 @@ from .exceptions import (
 )
 from .models import (
     FoodPrice,
-    GeoPoint,
     Incident,
     KexModel,
     Page,
@@ -54,7 +55,6 @@ __all__ = [
     "Direction",
     "DiscountType",
     "FoodPrice",
-    "GeoPoint",
     "IOType",
     "Incident",
     "KexCode",
@@ -75,6 +75,7 @@ __all__ = [
     "KexServiceUnavailableError",
     "KexTimeoutError",
     "Page",
+    "PlaceCoordinate",
     "RawCoordinate",
     "RestArea",
     "RestAreaFuelPrice",
