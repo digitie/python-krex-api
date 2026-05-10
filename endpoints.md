@@ -24,6 +24,7 @@
 - [휴게소 (Restarea)](#휴게소-restarea)
   - [노선별 휴게시설 현황 (`restarea.route_facilities`)](#노선별-휴게시설-현황)
   - [전국 휴게소 정보 (`restarea.list_all`)](#전국-휴게소-정보)
+  - [휴게소별 날씨 (`restarea.weather`)](#휴게소별-날씨)
   - [주유소별 가격·업체 현황 (`restarea.fuel_prices`)](#주유소별-가격업체-현황)
   - [노선별·방향별 휴게소 편의시설 현황 (`restarea.convenience_facilities`)](#노선별방향별-휴게소-편의시설-현황)
   - [휴게소 음식가격 (`restarea.food_price`)](#휴게소-음식가격)
@@ -352,6 +353,53 @@ print(res.items[0].traffic_volume)
 | `pharmacyYn`, `clinicYn` | 약국/의료시설 |
 | `phoneNumber` | 대표전화 |
 | `referenceDate` | 데이터 기준일 |
+
+---
+
+### 휴게소별 날씨
+
+고속도로 휴게소별 기준 시각 날씨 정보를 조회한다. `latest_weather()`는 같은 endpoint를 최근 시간대부터 순차 조회해 비어 있지 않은 첫 페이지를 반환하는 helper다.
+
+- **포털**: `data.ex.co.kr`
+- **기관 URL**: `http://data.ex.co.kr/openapi/basicinfo/openApiInfoM?apiId=0508`
+- **경로**: `/openapi/restinfo/restWeatherList`
+- **메서드**: `client.restarea.weather()`, `client.restarea.latest_weather()`
+
+**파라미터**
+
+| 이름 | 필수 | 타입 | 설명 |
+|------|------|------|------|
+| `sdate` | R | `str` / `date` / `datetime` | 기준일 (`YYYYMMDD`) |
+| `stdHour` | R | `str` / `int` | 기준 시각 (`00`~`23`) |
+
+**응답 필드**
+
+| 원본 필드 | 모델 필드 | 타입 | 설명 |
+|-----------|-----------|------|------|
+| `sdate` | `sdate` | `str` | 기준일 |
+| `stdHour` | `std_hour` | `str` | 기준 시각 |
+| `sdate` + `stdHour` | `observed_at` | `datetime` | KST 기준 관측/제공 시각 |
+| `unitCode` | `unit_code` | `str` | 휴게소 코드 |
+| `unitName` | `unit_name` | `str` | 휴게소명 |
+| `routeNo` | `route_no` | `str | None` | 노선번호 |
+| `routeName` | `route_name` | `str | None` | 노선명 |
+| `updownTypeCode` | `direction_code` | `str | None` | 방향 코드 |
+| `xValue` / `yValue` | `coordinate` | `GeoPoint | None` | 유효한 WGS84 좌표 |
+| `addr` | `address` | `str | None` | 주소 |
+| `measurement` | `measurement_station` | `str | None` | 관측 지점명 |
+| `weatherContents` | `weather` | `str | None` | 날씨 설명 |
+| `tempValue` | `temperature` | `float | None` | 기온 |
+| `humidityValue` | `humidity` | `float | None` | 습도 |
+| `windValue` | `wind_speed` | `float | None` | 풍속 |
+| `windContents` | `wind_direction_code` | `str | None` | 풍향 코드 |
+| `rainfallValue` | `rainfall` | `float | None` | 강수량 |
+| `rainfallstrengthValue` | `rainfall_strength` | `float | None` | 강수강도 |
+| `newsnowValue` | `new_snow` | `float | None` | 신적설 |
+| `snowValue` | `snow` | `float | None` | 적설 |
+| `cloudValue` | `cloud` | `float | None` | 운량 |
+| `dewValue` | `dew_point` | `float | None` | 이슬점 |
+
+`-99`, `-99.0`, `-99.000000` 계열 결측값은 typed 필드에서 `None`으로 정규화하고 원문은 `raw`에 보존한다.
 
 ---
 

@@ -2,7 +2,7 @@
 
 한국도로공사(Korea Expressway Corporation, KEX) 공공데이터 OpenAPI를 Python에서 편하게 쓰기 위한 비공식 클라이언트 라이브러리입니다.
 
-`kex-openapi`는 `data.ex.co.kr`와 `data.go.kr`에 흩어진 고속도로 교통량, 실시간 소통, 통행료, 영업소, 휴게소, 기준정보 API를 한 인터페이스로 감싸고, 응답을 Pydantic 모델과 enum으로 변환합니다.
+`kex-openapi`는 `data.ex.co.kr`와 `data.go.kr`에 흩어진 고속도로 교통량, 실시간 소통, 통행료, 영업소, 휴게소, 휴게소별 날씨, 기준정보 API를 한 인터페이스로 감싸고, 응답을 Pydantic 모델과 enum으로 변환합니다.
 
 > 현재 저장소는 초기 구현 단계입니다. 세부 엔드포인트 명세는 [endpoints.md](endpoints.md), 지원 상태표는 [API_COVERAGE.md](API_COVERAGE.md), 코드표는 [codes.md](codes.md), 에러 매핑은 [error-codes.md](error-codes.md), 구현 규칙은 [SKILL.md](SKILL.md)와 [AGENTS.md](AGENTS.md)를 참고하세요.
 
@@ -80,6 +80,11 @@ print(areas.items[0].name, areas.items[0].has_ev_charger)
 facilities = client.restarea.route_facilities(route_code="0010")
 fuel_prices = client.restarea.fuel_prices(service_area_code=facilities.items[0].service_area_code)
 print(facilities.items[0].service_area_name, fuel_prices.items[0].gasoline_price)
+
+# 휴게소별 날씨(data.ex.co.kr)
+weather = client.restarea.latest_weather(lookback_hours=72)
+if weather.first:
+    print(weather.first.unit_name, weather.first.weather, weather.first.temperature)
 ```
 
 ### 키를 직접 넘기는 방식
@@ -114,6 +119,7 @@ client = KexClient(
 | 통행료 | `tollfee.tollgate_list()` | `data.ex.co.kr` | `Page[Tollgate]` |
 | 휴게소 | `restarea.route_facilities()` | `data.ex.co.kr` | `Page[RestAreaRouteFacility]` |
 | 휴게소 | `restarea.list_all()` | `data.go.kr` | `Page[RestArea]` |
+| 휴게소 | `restarea.weather()`, `latest_weather()` | `data.ex.co.kr` | `Page[RestAreaWeather]` |
 | 휴게소 | `restarea.fuel_prices()` | `data.ex.co.kr` | `Page[RestAreaFuelPrice]` |
 | 휴게소 | `restarea.convenience_facilities()` | `data.ex.co.kr` | `Page[dict]` |
 | 휴게소 | `restarea.food_price()` | `data.ex.co.kr` | `Page[FoodPrice]` |
@@ -141,7 +147,7 @@ client = KexClient(
 | `data.go.kr` envelope | 구현됨 | `response.header.resultCode` 검사 |
 | 교통 핵심 모델 | 부분 구현 | `TrafficByIc`, `TrafficFlow`, `Incident` |
 | 통행료 핵심 모델 | 구현됨 | `TollFee`, `Tollgate` |
-| 휴게소 핵심 모델 | 부분 구현 | 노선별 휴게시설, 표준 휴게소, 주유소 가격, 음식가격 |
+| 휴게소 핵심 모델 | 부분 구현 | 노선별 휴게시설, 표준 휴게소, 휴게소별 날씨, 주유소 가격, 음식가격 |
 | 시설/행정 상세 모델 | 원시 dict 반환 | 경로 검증 후 Pydantic 모델 승격 예정 |
 | 라이브 호출 테스트 | 미포함 | 기본 테스트는 네트워크를 쓰지 않음 |
 
@@ -185,6 +191,22 @@ if flow:
     flow.model_dump()
     TrafficFlow.model_json_schema()
 ```
+
+---
+
+## 휴게소별 날씨
+
+한국도로공사 `data.ex.co.kr`의 휴게소별 날씨 정보는 `restarea.weather()`로 특정 기준일/시각을 조회하고, `restarea.latest_weather()`로 최근 비어 있지 않은 시간대를 찾습니다.
+
+```python
+page = client.restarea.weather(sdate="20210507", std_hour=12)
+latest = client.restarea.latest_weather(lookback_hours=72)
+
+for row in latest.items[:3]:
+    print(row.unit_name, row.route_name, row.weather, row.temperature)
+```
+
+`-99`, `-99.000000` 같은 한국도로공사 결측값은 `RestAreaWeather`의 typed 필드에서 `None`으로 정규화하고, 원문은 `raw`에 보존합니다.
 
 ---
 

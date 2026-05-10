@@ -43,6 +43,18 @@ If the path or schema is not verified, return `Page[dict]` and document that
 status clearly. We can always make a typed model later; removing a wrong public
 model is harder.
 
+## Porting From Sibling Libraries
+
+When `pykma`, `pyopinet`, or another sibling project already has a tested
+implementation for the same provider endpoint, prefer porting that behavior
+directly into the existing `KexClient` namespace. Do not add an extra standalone
+wrapper/client just to mirror the source library if the endpoint already fits
+`kex_openapi/client.py`.
+
+This may be a larger patch than the smallest local edit, but it keeps proven
+field mappings, sentinel handling, and validation rules intact while avoiding
+duplicated abstractions.
+
 ## Testing
 
 Required for ordinary changes:

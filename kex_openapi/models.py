@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, field_validator
@@ -217,6 +217,43 @@ class RestAreaFuelPrice(KexModel):
     diesel_price: int | None
     lpg_price: int | None
     raw: dict[str, Any]
+
+
+class RestAreaWeather(KexModel):
+    observed_at: datetime
+    sdate: str
+    std_hour: str
+    unit_code: str
+    unit_name: str
+    route_no: str | None
+    route_name: str | None
+    direction_code: str | None
+    lat: float | None
+    lon: float | None
+    address: str | None
+    measurement_station: str | None
+    weather: str | None
+    temperature: float | None
+    humidity: float | None
+    wind_speed: float | None
+    wind_direction_code: str | None
+    rainfall: float | None
+    rainfall_strength: float | None
+    new_snow: float | None
+    snow: float | None
+    cloud: float | None
+    dew_point: float | None
+    raw: dict[str, Any]
+    coordinate: GeoPoint | None = None
+    raw_coordinate: RawCoordinate | None = None
+
+    @property
+    def longitude(self) -> float | None:
+        return self.lon
+
+    @property
+    def latitude(self) -> float | None:
+        return self.lat
 
 
 class FoodPrice(KexModel):

@@ -40,6 +40,12 @@ The public package import name is `kex_openapi`; the distribution name is
   stable code values.
 - If an endpoint path is uncertain, expose it as `Page[dict]` first and document
   the uncertainty instead of pretending the schema is stable.
+- When `pykma`, `pyopinet`, or another sibling library already contains a
+  working implementation for the same provider endpoint, port the tested
+  behavior into the existing `KexClient` namespace. Avoid a new standalone
+  wrapper/client unless the provider, authentication model, or response shape
+  truly needs a separate abstraction. This direct-port preference may be more
+  important than keeping the patch to the smallest possible local edit.
 
 ## API Key Rules
 
@@ -133,6 +139,9 @@ Update documentation in the same change:
   `GeoPoint.latlon` only as a convenience alias.
 - Do not assume `data.ex.co.kr` always uses `list`; real responses can use an
   endpoint-named top-level array such as `trafficIc`.
+- Do not create a second wrapper layer for a provider endpoint that already fits
+  the existing `KexClient` namespace; port the sibling-library parser/model
+  behavior directly and document any intentional differences.
 - Do not use `payload.get("count") or ...` for counts. Real empty responses use
   `count=0`, and that must stay `0`.
 - Do not let API keys appear in model repr output.

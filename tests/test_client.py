@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 import pytest
@@ -10,10 +10,12 @@ from kex_openapi import (
     CongestionLevel,
     CoordinateSystem,
     Direction,
+    KexAuthError,
     KexClient,
     KexInvalidParameterError,
     KexNotFoundError,
     KexParseError,
+    RestAreaWeather,
     RoadOperator,
     TCSType,
     TimeUnit,
@@ -31,7 +33,7 @@ class FakeResponse:
 
 
 class FakeSession:
-    def __init__(self, payload: dict[str, Any]) -> None:
+    def __init__(self, payload: dict[str, Any] | list[dict[str, Any]]) -> None:
         self.payload = payload
         self.calls: list[dict[str, Any]] = []
 
@@ -45,6 +47,9 @@ class FakeSession:
 
     def get(self, url: str, *, params: dict[str, Any], timeout: float) -> FakeResponse:
         self.calls.append({"url": url, "params": params, "timeout": timeout})
+        if isinstance(self.payload, list):
+            index = min(len(self.calls) - 1, len(self.payload) - 1)
+            return FakeResponse(self.payload[index])
         return FakeResponse(self.payload)
 
 
@@ -59,6 +64,35 @@ def go_payload(items: Any) -> dict[str, Any]:
             "body": {"items": {"item": items}, "pageNo": "1", "numOfRows": "10", "totalCount": "1"},
         }
     }
+
+
+def rest_weather_row(**overrides: Any) -> dict[str, Any]:
+    row = {
+        "sdate": "20210507",
+        "stdHour": "12",
+        "unitCode": "002 ",
+        "unitName": "죽전휴게소",
+        "routeNo": "0010",
+        "routeName": "경부선",
+        "updownTypeCode": "E",
+        "xValue": "127.104165",
+        "yValue": "37.332651",
+        "addr": "경기도 용인시 수지구 풍덕천동 42-1",
+        "measurement": "연천",
+        "weatherContents": "비끝남",
+        "tempValue": "14.500000",
+        "humidityValue": "66.000000",
+        "windValue": "4.400000",
+        "windContents": "23",
+        "rainfallValue": "8.900000",
+        "rainfallstrengthValue": "-99.000000",
+        "newsnowValue": "-99.000000",
+        "snowValue": "-99.000000",
+        "cloudValue": "9.000000",
+        "dewValue": "8.200000",
+    }
+    row.update(overrides)
+    return row
 
 
 def test_traffic_by_ic_builds_query_and_parses_types() -> None:
@@ -228,6 +262,99 @@ def test_restarea_standard_data_uses_go_key_and_parses_bool() -> None:
     assert rest_area.reference_date == date(2026, 4, 30)
     assert rest_area.coordinate is not None
     assert rest_area.coordinate.lonlat == pytest.approx((127.104, 37.332))
+
+
+def test_restarea_weather_builds_query_and_parses_typed_rows() -> None:
+    session = FakeSession(ex_payload([rest_weather_row()]))
+    client = KexClient(ex_api_key="road-key", retry_backoff=0, session=session)
+
+    page = client.restarea.weather(sdate="20210507", std_hour=12)
+
+    assert session.last_url.endswith("/openapi/restinfo/restWeatherList")
+    assert session.last_params["key"] == "road-key"
+    assert session.last_params["sdate"] == "20210507"
+    assert session.last_params["stdHour"] == "12"
+    item = page.items[0]
+    assert isinstance(item, RestAreaWeather)
+    assert item.observed_at.isoformat() == "2021-05-07T12:00:00+09:00"
+    assert item.unit_code == "002"
+    assert item.unit_name == "죽전휴게소"
+    assert item.route_no == "0010"
+    assert item.route_name == "경부선"
+    assert item.address == "경기도 용인시 수지구 풍덕천동 42-1"
+    assert item.weather == "비끝남"
+    assert item.temperature == 14.5
+    assert item.humidity == 66.0
+    assert item.wind_speed == 4.4
+    assert item.rainfall == 8.9
+    assert item.rainfall_strength is None
+    assert item.new_snow is None
+    assert item.snow is None
+    assert item.coordinate is not None
+    assert item.coordinate.lonlat == pytest.approx((127.104165, 37.332651))
+    assert item.longitude == pytest.approx(127.104165)
+    assert item.latitude == pytest.approx(37.332651)
+    assert item.raw["xValue"] == "127.104165"
+
+
+def test_restarea_weather_accepts_single_object_and_missing_sentinel() -> None:
+    session = FakeSession(
+        ex_payload(rest_weather_row(xValue="-99.000000", yValue="-99.000000"))
+    )
+    client = KexClient(ex_api_key="road-key", retry_backoff=0, session=session)
+
+    item = client.restarea.weather(sdate="20210507", std_hour="12").items[0]
+
+    assert item.coordinate is None
+    assert item.raw_coordinate is None
+    assert item.longitude is None
+    assert item.latitude is None
+
+
+def test_restarea_latest_weather_looks_back_until_non_empty() -> None:
+    session = FakeSession([ex_payload([]), ex_payload([rest_weather_row(stdHour="11")])])
+    client = KexClient(ex_api_key="road-key", retry_backoff=0, session=session)
+
+    page = client.restarea.latest_weather(
+        when=datetime(2021, 5, 7, 12, 30),
+        lookback_hours=2,
+    )
+
+    assert page.items[0].std_hour == "11"
+    assert session.calls[0]["params"]["stdHour"] == "12"
+    assert session.calls[1]["params"]["stdHour"] == "11"
+
+
+def test_restarea_weather_validates_date_and_hour() -> None:
+    client = KexClient(ex_api_key="road-key", retry_backoff=0, session=FakeSession(ex_payload([])))
+
+    with pytest.raises(ValueError):
+        client.restarea.weather(sdate="2021-05-07", std_hour=12)
+    with pytest.raises(ValueError):
+        client.restarea.weather(sdate="20210507", std_hour=24)
+    with pytest.raises(ValueError):
+        client.restarea.latest_weather(lookback_hours=-1)
+
+
+def test_restarea_weather_error_code_and_shape_errors() -> None:
+    auth_client = KexClient(
+        ex_api_key="bad-key",
+        retry_backoff=0,
+        session=FakeSession(
+            {"code": "INVALID_KEY", "message": "인증키가 유효하지 않습니다.", "list": None}
+        ),
+    )
+    shape_client = KexClient(
+        ex_api_key="road-key",
+        retry_backoff=0,
+        session=FakeSession({"code": "SUCCESS", "list": "bad"}),
+    )
+
+    with pytest.raises(KexAuthError) as raised:
+        auth_client.restarea.weather(sdate="20210507", std_hour=12)
+    assert "bad-key" not in str(raised.value)
+    with pytest.raises(KexParseError):
+        shape_client.restarea.weather(sdate="20210507", std_hour=12)
 
 
 def test_restarea_route_facilities_parse_service_area_master_fields() -> None:

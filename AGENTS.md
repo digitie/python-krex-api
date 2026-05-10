@@ -29,6 +29,11 @@ This repository follows the same working shape as `pykma` and `pyopinet`.
 - Always inspect body-level API result codes. `data.go.kr` commonly returns
   HTTP 200 for application errors.
 - Keep API keys out of repr strings, failure messages, commits, and docs.
+- When a sibling library such as `pykma` or `pyopinet` already has a verified
+  implementation for the same provider endpoint, port that behavior directly
+  into the existing `KexClient` namespace instead of adding a separate wrapper
+  layer. This preference can outweigh a narrowly minimal diff when it prevents
+  duplicated abstractions and preserves proven parsing rules.
 
 ## Module Ownership
 
