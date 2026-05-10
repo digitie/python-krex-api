@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 
 from kex_openapi import (
+    AddressRegion,
     CarType,
     CongestionLevel,
     CoordinateSystem,
@@ -285,6 +286,11 @@ def test_restarea_weather_builds_query_and_parses_typed_rows() -> None:
     assert item.route_no == "0010"
     assert item.route_name == "경부선"
     assert item.address == "경기도 용인시 수지구 풍덕천동 42-1"
+    assert isinstance(item.address_region, AddressRegion)
+    assert item.address_region.sido_name == "경기도"
+    assert item.address_region.sigungu_name == "용인시 수지구"
+    assert item.address_region.eup_myeon_dong_name == "풍덕천동"
+    assert item.address_region.legal_dong_code is None
     assert item.weather == "비끝남"
     assert item.temperature == 14.5
     assert item.humidity == 66.0
@@ -373,6 +379,7 @@ def test_restarea_route_facilities_parse_service_area_master_fields() -> None:
                 "telNo": "031-000-0000",
                 "serviceAreaCode2": "000139",
                 "svarAddr": "경기 용인시 수지구",
+                "ADM_CD": "4146510100",
                 "brand": "투썸플레이스",
                 "convenience": "수유실|쉼터",
                 "maintenanceYn": "X",
@@ -395,6 +402,11 @@ def test_restarea_route_facilities_parse_service_area_master_fields() -> None:
     assert facility.service_area_code2 == "000139"
     assert facility.service_area_name == "죽전휴게소"
     assert facility.address == "경기 용인시 수지구"
+    assert facility.address_region is not None
+    assert facility.address_region.sido_name == "경기도"
+    assert facility.address_region.sigungu_name == "용인시 수지구"
+    assert facility.address_region.legal_dong_code_value == "4146510100"
+    assert facility.address_region.sigungu_code_value == "41465"
     assert facility.brand == "투썸플레이스"
     assert facility.convenience == "수유실|쉼터"
     assert facility.has_maintenance is False
@@ -435,6 +447,9 @@ def test_restarea_fuel_prices_parse_money_and_lpg_flag() -> None:
     assert fuel.oil_company == "EX-OIL"
     assert fuel.has_lpg is True
     assert fuel.address == "경기 용인시 수지구"
+    assert fuel.address_region is not None
+    assert fuel.address_region.sido_name == "경기도"
+    assert fuel.address_region.sigungu_name == "용인시 수지구"
     assert fuel.gasoline_price == 1710
     assert fuel.diesel_price == 1599
     assert fuel.lpg_price == 1010
