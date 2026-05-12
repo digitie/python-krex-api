@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from kex_openapi import CoordinateSystem, Page, PlaceCoordinate, RawCoordinate
+from krex import CoordinateSystem, Page, PlaceCoordinate, RawCoordinate
 
 
 def test_page_behaves_like_read_only_sequence() -> None:

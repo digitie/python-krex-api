@@ -1,8 +1,8 @@
-# kex-openapi
+# python-krex-api
 
 한국도로공사(Korea Expressway Corporation, KEX) 공공데이터 OpenAPI를 Python에서 편하게 쓰기 위한 비공식 클라이언트 라이브러리입니다.
 
-`kex-openapi`는 `data.ex.co.kr`와 `data.go.kr`에 흩어진 고속도로 교통량, 실시간 소통, 통행료, 영업소, 휴게소, 휴게소별 날씨, 기준정보 API를 한 인터페이스로 감싸고, 응답을 Pydantic 모델과 enum으로 변환합니다.
+`python-krex-api`는 `data.ex.co.kr`와 `data.go.kr`에 흩어진 고속도로 교통량, 실시간 소통, 통행료, 영업소, 휴게소, 휴게소별 날씨, 기준정보 API를 한 인터페이스로 감싸고, 응답을 Pydantic 모델과 enum으로 변환합니다.
 
 > 현재 저장소는 초기 구현 단계입니다. 세부 엔드포인트 명세는 [endpoints.md](endpoints.md), 지원 상태표는 [API_COVERAGE.md](API_COVERAGE.md), 코드표는 [codes.md](codes.md), 에러 매핑은 [error-codes.md](error-codes.md), 구현 규칙은 [SKILL.md](SKILL.md)와 [AGENTS.md](AGENTS.md)를 참고하세요.
 
@@ -49,13 +49,13 @@ pip install -e ".[dev]"
 PyPI 배포 후:
 
 ```bash
-pip install kex-openapi
+pip install python-krex-api
 ```
 
 ### 3단계: 사용
 
 ```python
-from kex_openapi import CarType, KexClient
+from krex import CarType, KexClient
 
 client = KexClient.from_env()
 
@@ -92,7 +92,7 @@ if weather.first:
 환경변수 대신 명시적으로 키를 주입할 수도 있습니다. 테스트나 배치 작업에서는 이 방식이 더 읽기 쉽습니다.
 
 ```python
-from kex_openapi import KexClient
+from krex import KexClient
 
 client = KexClient(
     ex_api_key="data.ex.co.kr 키",
@@ -184,7 +184,7 @@ for flow in page:
 공개 응답 모델은 Pydantic v2 모델입니다. 라이브러리 밖에서는 dict 변환, JSON schema 생성, 입력 검증을 별도 래퍼 없이 사용할 수 있습니다.
 
 ```python
-from kex_openapi import TrafficFlow
+from krex import TrafficFlow
 
 flow = page.first
 if flow:
@@ -215,7 +215,7 @@ for row in latest.items[:3]:
 코드값은 `StrEnum` 기반 enum으로 제공합니다. 문자열처럼 API 파라미터에 쓸 수 있으면서, 라벨과 선택지를 함께 제공합니다.
 
 ```python
-from kex_openapi import CarType, TCSType
+from krex import CarType, TCSType
 
 CarType.LIGHT.value      # "1"
 CarType.LIGHT.label      # "1종"
@@ -286,7 +286,7 @@ KEX 응답의 주소 문자열만으로는 10자리 법정동코드를 안전하
 실제 포털 호출 없이 fake session을 주입할 수 있습니다.
 
 ```python
-from kex_openapi import KexClient
+from krex import KexClient
 
 class Session:
     def get(self, url, *, params, timeout):
@@ -317,7 +317,7 @@ python -m pytest -m live -vv
 ## 에러 처리
 
 ```python
-from kex_openapi import KexAuthError, KexClient, KexQuotaExceededError, KexServerError
+from krex import KexAuthError, KexClient, KexQuotaExceededError, KexServerError
 
 client = KexClient.from_env()
 
@@ -354,10 +354,10 @@ except KexServerError:
 ## 개발
 
 ```bash
-python -m compileall kex_openapi tests
+python -m compileall src/krex tests
 python -m pytest
-python -m pytest --cov=kex_openapi --cov-fail-under=90
-python -m mypy kex_openapi
+python -m pytest --cov=krex --cov-fail-under=90
+python -m mypy src/krex
 ruff check .
 ```
 
@@ -367,25 +367,25 @@ ruff check .
 
 ## 패키지 설계
 
-`kex-openapi`는 얇은 계층을 선호합니다.
+`python-krex-api`는 얇은 계층을 선호합니다.
 
 | 모듈 | 책임 |
 |---|---|
-| `kex_openapi/client.py` | 사용자용 `KexClient`, 엔드포인트 네임스페이스, 모델 파싱 |
-| `kex_openapi/_http.py` | HTTP 호출, retry, 포털별 envelope 정규화, 에러 매핑 |
-| `kex_openapi/_convert.py` | 문자열 기반 API 응답을 Python 타입으로 변환 |
-| `kex_openapi/codes.py` | 안정적인 코드값 enum과 라벨 |
-| `kex_openapi/models.py` | public Pydantic 반환 모델 |
-| `kex_openapi/exceptions.py` | 예외 계층 |
+| `src/krex/client.py` | 사용자용 `KexClient`, 엔드포인트 네임스페이스, 모델 파싱 |
+| `src/krex/_http.py` | HTTP 호출, retry, 포털별 envelope 정규화, 에러 매핑 |
+| `src/krex/_convert.py` | 문자열 기반 API 응답을 Python 타입으로 변환 |
+| `src/krex/codes.py` | 안정적인 코드값 enum과 라벨 |
+| `src/krex/models.py` | public Pydantic 반환 모델 |
+| `src/krex/exceptions.py` | 예외 계층 |
 
-새 기능을 넣을 때는 보통 `kex_openapi/codes.py`와 `kex_openapi/models.py`를 먼저 보강하고, `kex_openapi/client.py`에서 메서드를 연결한 뒤, `tests/`에서 fake 응답으로 쿼리와 변환을 잠급니다.
+새 기능을 넣을 때는 보통 `src/krex/codes.py`와 `src/krex/models.py`를 먼저 보강하고, `src/krex/client.py`에서 메서드를 연결한 뒤, `tests/`에서 fake 응답으로 쿼리와 변환을 잠급니다.
 
 ---
 
 ## 프로젝트 파일
 
 ```text
-kex_openapi/
+src/krex/
 ├── __init__.py
 ├── client.py
 ├── _http.py

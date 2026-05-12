@@ -1,11 +1,11 @@
 ---
-name: kex-openapi
+name: python-krex-api
 description: Build, extend, test, or troubleshoot the Python client for Korea Expressway Corporation OpenAPIs exposed through data.ex.co.kr and data.go.kr.
 ---
 
-# kex-openapi Skill
+# python-krex-api Skill
 
-Use this guide when working on the `kex-openapi` Python library.
+Use this guide when working on the `python-krex-api` Python library.
 
 ## Scope
 
@@ -14,20 +14,20 @@ This project wraps Korea Expressway Corporation public APIs from:
 1. `data.ex.co.kr` with `key` and `type=json`
 2. `data.go.kr` / `api.data.go.kr` with `serviceKey` and JSON response options
 
-The public package import name is `kex_openapi`; the distribution name is
-`kex-openapi`.
+The public package import name is `krex`; the distribution name is
+`python-krex-api`.
 
 ## Repository Rules
 
 - Read `endpoints.md`, `codes.md`, and `error-codes.md` before changing endpoint behavior.
 - Read `API_COVERAGE.md` before claiming an API is supported or live-verified.
 - Keep the implementation shape aligned with `pykma` and `pyopinet`:
-  `kex_openapi/client.py`, `kex_openapi/_http.py`, `kex_openapi/_convert.py`,
-  `kex_openapi/codes.py`, `kex_openapi/models.py`, `kex_openapi/exceptions.py`.
+  `src/krex/client.py`, `src/krex/_http.py`, `src/krex/_convert.py`,
+  `src/krex/codes.py`, `src/krex/models.py`, `src/krex/exceptions.py`.
 - Do not add live network calls to ordinary tests.
 - Do not commit API keys or generated caches.
 - Write file locations in documents as project-root-relative paths, for example
-  `kex_openapi/client.py`; avoid local absolute paths.
+  `src/krex/client.py`; avoid local absolute paths.
 - Write Python docstrings and explanatory comments in Korean unless preserving
   provider text, public code identifiers, or protocol literals.
 - In this Windows workspace, `rg.exe` may be present but fail with
@@ -135,7 +135,7 @@ Update documentation in the same change:
 - Do not add endpoint paths from guesses without documenting that they are unverified.
 - Do not make tests depend on current public portal data.
 - Do not parse money or traffic values by hand at call sites. Keep conversion in
-  `kex_openapi/_convert.py` or model parser helpers.
+  `src/krex/_convert.py` or model parser helpers.
 - Do not expose a new Pydantic model until at least one realistic fixture or fake
   response locks the expected field names.
 - Do not introduce ad-hoc `(lat, lon)` tuples in public models. Use
@@ -160,10 +160,10 @@ Update documentation in the same change:
 Before pushing a release branch or first public commit:
 
 ```bash
-python -m compileall kex_openapi tests
+python -m compileall src/krex tests
 python -m pytest
-python -m pytest --cov=kex_openapi --cov-fail-under=90
-python -m mypy kex_openapi
+python -m pytest --cov=krex --cov-fail-under=90
+python -m mypy src/krex
 ```
 
 `ruff check .` is also expected when the environment has Ruff installed.
@@ -182,13 +182,13 @@ Live tests may read `KEX_EX_API_KEY` from local `.env`, which is ignored by Git.
 Run at minimum:
 
 ```bash
-python -m compileall kex_openapi tests
+python -m compileall src/krex tests
 python -m pytest
 ```
 
 When type tooling is installed:
 
 ```bash
-python -m mypy kex_openapi
+python -m mypy src/krex
 ruff check .
 ```

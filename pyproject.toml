@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "kex-openapi"
+name = "python-krex-api"
 version = "0.1.0"
 description = "Unofficial Python client for Korea Expressway Corporation OpenAPIs."
 readme = "README.md"
@@ -12,7 +12,7 @@ license = { text = "GPL-3.0-or-later" }
 authors = [
   { name = "digitie" }
 ]
-keywords = ["kex", "expressway", "korea", "data.ex.co.kr", "data.go.kr"]
+keywords = ["krex", "kex", "expressway", "korea", "data.ex.co.kr", "data.go.kr"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Developers",
@@ -38,8 +38,15 @@ dev = [
   "types-requests>=2.31",
 ]
 
+[tool.setuptools]
+package-dir = { "" = "src" }
+
 [tool.setuptools.packages.find]
-include = ["kex_openapi*"]
+where = ["src"]
+include = ["krex*"]
+
+[tool.setuptools.package-data]
+krex = ["py.typed"]
 
 [tool.ruff]
 line-length = 100
@@ -56,6 +63,7 @@ mypy_path = "../pykrtour"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 addopts = "-ra"
 markers = [
   "live: tests that call real KEX APIs and require KEX_EX_API_KEY or KEX_GO_API_KEY",

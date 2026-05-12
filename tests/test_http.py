@@ -5,8 +5,8 @@ from typing import Any
 import pytest
 import requests
 
-from kex_openapi._http import KexHttp
-from kex_openapi.exceptions import (
+from krex._http import KexHttp
+from krex.exceptions import (
     KexAuthError,
     KexBadRequestError,
     KexConfigError,

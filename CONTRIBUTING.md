@@ -1,6 +1,6 @@
 # Contributing
 
-`kex-openapi` is built to stay boring in the best way: small modules, explicit
+`python-krex-api` is built to stay boring in the best way: small modules, explicit
 models, network-free tests, and documentation that captures every sharp edge we
 discover.
 
@@ -32,9 +32,9 @@ Read the documents that match your task:
 ## Adding An Endpoint
 
 1. Add or confirm the endpoint entry in `endpoints.md`.
-2. Add code enums in `kex_openapi/codes.py` if the endpoint uses stable public codes.
-3. Add a Pydantic model in `kex_openapi/models.py` only when the response schema is known.
-4. Add the client method in the correct namespace in `kex_openapi/client.py`.
+2. Add code enums in `src/krex/codes.py` if the endpoint uses stable public codes.
+3. Add a Pydantic model in `src/krex/models.py` only when the response schema is known.
+4. Add the client method in the correct namespace in `src/krex/client.py`.
 5. Add tests for query parameters, response parsing, single-object normalization,
    provider errors, malformed shapes, and local validation.
 6. Update README examples only for endpoints that users should call directly.
@@ -49,7 +49,7 @@ When `pykma`, `pyopinet`, or another sibling project already has a tested
 implementation for the same provider endpoint, prefer porting that behavior
 directly into the existing `KexClient` namespace. Do not add an extra standalone
 wrapper/client just to mirror the source library if the endpoint already fits
-`kex_openapi/client.py`.
+`src/krex/client.py`.
 
 This may be a larger patch than the smallest local edit, but it keeps proven
 field mappings, sentinel handling, and validation rules intact while avoiding
@@ -60,15 +60,15 @@ duplicated abstractions.
 Required for ordinary changes:
 
 ```bash
-python -m compileall kex_openapi tests
+python -m compileall src/krex tests
 python -m pytest
-python -m mypy kex_openapi
+python -m mypy src/krex
 ```
 
 For broader changes:
 
 ```bash
-python -m pytest --cov=kex_openapi --cov-fail-under=90
+python -m pytest --cov=krex --cov-fail-under=90
 ruff check .
 ```
 
@@ -105,7 +105,7 @@ Common placements:
 Style rules:
 
 - Document file locations as project-root-relative paths such as
-  `kex_openapi/client.py`, not local absolute paths.
+  `src/krex/client.py`, not local absolute paths.
 - Write Python docstrings and explanatory comments in Korean unless quoting
   provider text or preserving public code/protocol identifiers.
 - In the Windows workspace, `rg.exe` may fail with `Access is denied`; use

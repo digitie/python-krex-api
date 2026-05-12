@@ -1,4 +1,4 @@
-"""kex-openapi 예외 계층."""
+"""python-krex-api 예외 계층."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from typing import Any
 
 
 class KexError(Exception):
-    """모든 kex-openapi 예외의 공통 기반 클래스."""
+    """모든 python-krex-api 예외의 공통 기반 클래스."""
 
     def __init__(
         self,

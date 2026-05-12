@@ -184,7 +184,7 @@ client = KexClient(max_retries=5, backoff_factor=1.0)
 | `KexNetworkError` | 위 둘의 부모. 분기 처리에 사용 |
 
 ```python
-from kex_openapi.exceptions import KexNetworkError
+from krex.exceptions import KexNetworkError
 
 try:
     client.traffic.flow()
@@ -277,7 +277,7 @@ client.traffic.by_ic(car_type="A")            # ✗ KexInvalidParameterError
 
 # 디버그 로깅으로 실제 전송된 파라미터 확인
 import logging
-logging.getLogger("kex_openapi").setLevel(logging.DEBUG)
+logging.getLogger("krex").setLevel(logging.DEBUG)
 ```
 
 ---
@@ -293,7 +293,7 @@ logging.getLogger("kex_openapi").setLevel(logging.DEBUG)
 **조치**
 
 ```python
-from kex_openapi.exceptions import KexNotFoundError
+from krex.exceptions import KexNotFoundError
 
 try:
     res = client.traffic.by_ic(unit_code="101", std_date="20200101")

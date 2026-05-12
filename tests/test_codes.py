@@ -1,8 +1,8 @@
 import pytest
 
-from kex_openapi import CarType, CongestionLevel, CoordinateSystem, Direction, TCSType
-from kex_openapi.codes import coerce_code
-from kex_openapi.exceptions import KexInvalidParameterError
+from krex import CarType, CongestionLevel, CoordinateSystem, Direction, TCSType
+from krex.codes import coerce_code
+from krex.exceptions import KexInvalidParameterError
 
 
 def test_enum_labels_are_stable() -> None:

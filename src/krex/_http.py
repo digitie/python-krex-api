@@ -29,7 +29,7 @@ def _load_requests() -> Any:
     try:
         import requests
     except ModuleNotFoundError as exc:
-        raise KexConfigError("requests is required; install kex-openapi dependencies") from exc
+        raise KexConfigError("requests is required; install python-krex-api dependencies") from exc
     return requests
 
 

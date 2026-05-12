@@ -2,7 +2,7 @@ from datetime import date, datetime
 
 import pytest
 
-from kex_openapi._convert import (
+from krex._convert import (
     normalize_items,
     parse_datetime_text,
     strip_or_none,

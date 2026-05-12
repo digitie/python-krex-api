@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from kex_openapi import CarType, KexClient, RoadOperator, TCSType, TimeUnit
+from krex import CarType, KexClient, RoadOperator, TCSType, TimeUnit
 
 
 def _load_local_env() -> None:

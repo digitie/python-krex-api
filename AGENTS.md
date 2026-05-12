@@ -8,7 +8,7 @@ This repository follows the same working shape as `pykma` and `pyopinet`.
   `KEX_GO_API_KEY` for `data.go.kr`.
 - Unit tests must not call the network. Use fake sessions or fixtures.
 - In documents, write file locations as project-root-relative paths such as
-  `kex_openapi/client.py`; do not use local absolute paths.
+  `src/krex/client.py`; do not use local absolute paths.
 - Write Python docstrings and explanatory comments in Korean unless quoting
   provider text or preserving code identifiers.
 - In this Windows workspace, `rg.exe` can fail with `Access is denied`; when it
@@ -40,11 +40,11 @@ This repository follows the same working shape as `pykma` and `pyopinet`.
 
 ## Module Ownership
 
-- `kex_openapi/_http.py`: transport, retries, API envelope/error mapping.
-- `kex_openapi/_convert.py`: small conversion helpers at the response boundary.
-- `kex_openapi/codes.py`: enums and code labels.
-- `kex_openapi/models.py`: public Pydantic return models.
-- `kex_openapi/client.py`: high-level endpoint namespaces and parsing.
+- `src/krex/_http.py`: transport, retries, API envelope/error mapping.
+- `src/krex/_convert.py`: small conversion helpers at the response boundary.
+- `src/krex/codes.py`: enums and code labels.
+- `src/krex/models.py`: public Pydantic return models.
+- `src/krex/client.py`: high-level endpoint namespaces and parsing.
 - `API_COVERAGE.md`: source-of-truth for implemented vs live-verified API
   status.
 
@@ -74,9 +74,9 @@ When behavior changes, update the matching document in the same patch:
 
 ## Commit Hygiene
 
-- Run `python -m compileall kex_openapi tests` and `python -m pytest` before
+- Run `python -m compileall src/krex tests` and `python -m pytest` before
   pushing.
-- Run `python -m mypy kex_openapi` when `mypy` is installed.
+- Run `python -m mypy src/krex` when `mypy` is installed.
 - Run `$env:KEX_LIVE="1"; python -m pytest -m live -vv` only when deliberately
   validating against the real `data.ex.co.kr` server.
 - Do not include `.pytest_cache`, `.mypy_cache`, `.ruff_cache`, `.coverage`, or

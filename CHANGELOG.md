@@ -30,10 +30,10 @@ Initial package scaffold and first implementation pass.
 
 ### Validation
 
-- `python -m compileall kex_openapi tests`
+- `python -m compileall src/krex tests`
 - `python -m pytest`
-- `python -m pytest --cov=kex_openapi --cov-fail-under=90`
-- `python -m mypy kex_openapi`
+- `python -m pytest --cov=krex --cov-fail-under=90`
+- `python -m mypy src/krex`
 
 `ruff` was not available in the initial local environment.
 

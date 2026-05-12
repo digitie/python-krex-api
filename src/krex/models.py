@@ -1,4 +1,4 @@
-"""kex-openapi가 반환하는 공개 Pydantic 모델."""
+"""python-krex-api가 반환하는 공개 Pydantic 모델."""
 
 from __future__ import annotations
 

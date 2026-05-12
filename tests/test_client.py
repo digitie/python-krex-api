@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from kex_openapi import (
+from krex import (
     Address,
     CarType,
     CongestionLevel,

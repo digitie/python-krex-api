@@ -1,7 +1,7 @@
 # Code Tables
 
 한국도로공사 OpenAPI에서 사용하는 코드값 모음.
-라이브러리에서는 모두 `kex_openapi/codes.py` 파일에 enum 형태로 제공됩니다.
+라이브러리에서는 모두 `src/krex/codes.py` 파일에 enum 형태로 제공됩니다.
 
 > **주의**
 > 일부 코드(특히 영업소 코드)는 도로 신설/변경에 따라 추가·수정됩니다.
@@ -38,7 +38,7 @@
 | `6` | `CarType.LIGHT_DISCOUNT` | 6종 | 1종 중 경형(1,000cc 미만) — 50% 할인 대상 |
 
 ```python
-from kex_openapi.codes import CarType
+from krex.codes import CarType
 CarType.LIGHT.value          # "1"
 CarType.LIGHT.label          # "1종 (소형)"
 CarType.from_label("1종")     # CarType.LIGHT
@@ -265,7 +265,7 @@ API에서는 4자리 숫자 형태(`0010`, `0150` 등)로 사용. 마지막 0은
 라이브러리에는 명칭→코드 양방향 검색 헬퍼가 포함됩니다.
 
 ```python
-from kex_openapi import KexClient
+from krex import KexClient
 client = KexClient()
 
 # 명칭으로 검색
