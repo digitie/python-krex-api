@@ -277,7 +277,7 @@ if facility and facility.address:
 KEX 응답의 주소 문자열만으로는 10자리 법정동코드를 안전하게 확정하지 않습니다.
 원문 row에 `legal_dong_code`, `ADM_CD` 같은 코드가 있으면 `Address`에 보존하고,
 코드가 없으면 시도/시군구/읍면동 이름까지만 채웁니다. 좌표 기반 법정동코드가 필요하면
-`pyvworld`의 법정동 경계 데이터(`LT_C_ADEMD_INFO`) 조회 결과를 별도로 결합하세요.
+`python-vworld-api`의 법정동 경계 데이터(`LT_C_ADEMD_INFO`) 조회 결과를 별도로 결합하세요.
 
 ---
 

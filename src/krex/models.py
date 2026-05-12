@@ -6,8 +6,8 @@ from collections.abc import Iterator
 from datetime import date, datetime
 from typing import Any, Generic, TypeVar
 
-from pydantic import BaseModel, ConfigDict
 from kraddr.base import Address, PlaceCoordinate
+from pydantic import BaseModel, ConfigDict
 
 from .codes import (
     CarType,
