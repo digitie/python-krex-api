@@ -92,10 +92,10 @@ Never rely on HTTP status alone. Inspect body-level result codes.
 - Convert Y/N fields to `bool | None`.
 - Keep public models based on `KexModel` so external callers can rely on
   `model_dump()`, `model_validate()`, and `model_json_schema()`.
-- Expose standard WGS84 positions as `pykrtour.PlaceCoordinate(lon, lat)`. Keep legacy
+- Expose standard WGS84 positions as `kraddr.base.PlaceCoordinate(lon, lat)`. Keep legacy
   `lat`/`lon` and `x`/`y` fields when already public, but prefer `coordinate`
   for new code.
-- Expose address data as `pykrtour.Address`. Free-form address strings may fill
+- Expose address data as `kraddr.base.Address`. Free-form address strings may fill
   display text and region names, but legal-dong codes must come from provider
   fields or verified external lookup results such as VWorld boundary data.
 - Preserve ambiguous raw coordinates as `RawCoordinate` with a

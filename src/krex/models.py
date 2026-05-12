@@ -7,7 +7,7 @@ from datetime import date, datetime
 from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict
-from pykrtour import Address, PlaceCoordinate
+from kraddr.base import Address, PlaceCoordinate
 
 from .codes import (
     CarType,

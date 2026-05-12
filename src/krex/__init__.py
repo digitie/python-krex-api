@@ -1,6 +1,6 @@
 """한국도로공사 OpenAPI 비공식 Python 클라이언트."""
 
-from pykrtour import Address, PlaceCoordinate
+from kraddr.base import Address, PlaceCoordinate
 
 from .client import KexClient
 from .codes import (

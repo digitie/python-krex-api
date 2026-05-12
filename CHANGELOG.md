@@ -47,9 +47,9 @@ Initial package scaffold and first implementation pass.
 - `restarea.disabled_facility()` and `restarea.bus_transit()` raw wrappers.
 - `API_COVERAGE.md` to track documented, implemented, typed, raw, and
   live-verified API status.
-- `CoordinateSystem`, `pykrtour.PlaceCoordinate`, and `RawCoordinate` public
+- `CoordinateSystem`, `kraddr.base.PlaceCoordinate`, and `RawCoordinate` public
   coordinate types.
-- `pykrtour.Address` public address type on rest-area address models. KEX
+- `kraddr.base.Address` public address type on rest-area address models. KEX
   address strings populate the `Address` display value and region names, while
   provider legal-dong codes are preserved when present.
 - `Page` sequence-like helpers: iteration, `len(page)`, truthiness, `first`,

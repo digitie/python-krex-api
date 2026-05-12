@@ -18,9 +18,9 @@ This repository follows the same working shape as `pykma` and `pyopinet`.
   corrupted in PowerShell output.
 - Keep public return values typed Pydantic models or enum values, not raw strings,
   whenever the field has a stable meaning.
-- Use `pykrtour.PlaceCoordinate(lon, lat)` for public WGS84 coordinates and
+- Use `kraddr.base.PlaceCoordinate(lon, lat)` for public WGS84 coordinates and
   expose raw ambiguous coordinates separately.
-- Use `pykrtour.Address` for public address data. Do not guess a 10-digit
+- Use `kraddr.base.Address` for public address data. Do not guess a 10-digit
   legal-dong code from free-form address text; preserve it only when the
   provider row or a verified geocoder/boundary lookup supplies it.
 - Preserve code-like identifiers exactly as strings when leading zeroes matter
