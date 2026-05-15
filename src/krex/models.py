@@ -53,6 +53,20 @@ class Page(KexModel, Generic[T]):
         return not self.items
 
 
+class ApiCatalogItem(KexModel):
+    function: str
+    dataset_name: str
+    provider: str
+    service_key_url: str | None = None
+    endpoint: str | None = None
+    method: str = "GET"
+    return_type: str
+    description: str
+    dataset_id: str | None = None
+    live_verified: bool | None = None
+    fixture_supported: bool = False
+
+
 class RawCoordinate(KexModel):
     x: float
     y: float

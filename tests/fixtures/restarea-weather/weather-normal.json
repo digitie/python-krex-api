@@ -1,0 +1,73 @@
+{
+  "name": "weather-normal",
+  "function": "restarea.weather",
+  "description": "휴게소 날씨 raw response를 replay로 파싱하는 기본 fixture",
+  "input": {
+    "sdate": "20210507",
+    "std_hour": "12"
+  },
+  "request": {
+    "method": "GET",
+    "url": "https://data.ex.co.kr/openapi/restinfo/restWeatherList",
+    "query": {
+      "key": "<REDACTED>",
+      "type": "json",
+      "sdate": "20210507",
+      "stdHour": "12"
+    }
+  },
+  "response": {
+    "status_code": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "body": {
+      "code": "SUCCESS",
+      "pageNo": "1",
+      "numOfRows": "1000",
+      "count": "1",
+      "list": [
+        {
+          "sdate": "20210507",
+          "stdHour": "12",
+          "unitCode": "002 ",
+          "unitName": "죽전휴게소",
+          "routeNo": "0010",
+          "routeName": "경부선",
+          "updownTypeCode": "E",
+          "xValue": "127.104165",
+          "yValue": "37.332651",
+          "addr": "경기도 용인시 수지구 풍덕천동 42-1",
+          "measurement": "연천",
+          "weatherContents": "비끝남",
+          "tempValue": "14.500000",
+          "humidityValue": "66.000000",
+          "windValue": "4.400000",
+          "windContents": "23",
+          "rainfallValue": "8.900000",
+          "rainfallstrengthValue": "-99.000000",
+          "newsnowValue": "-99.000000",
+          "snowValue": "-99.000000",
+          "cloudValue": "9.000000",
+          "dewValue": "8.200000"
+        }
+      ]
+    }
+  },
+  "parsed": {},
+  "processed": {},
+  "assertion": {
+    "mode": "required_fields",
+    "exclude_fields": [],
+    "required_fields": [
+      "items",
+      "total_count",
+      "raw"
+    ]
+  },
+  "meta": {
+    "created_at": "2026-05-15T20:30:00+09:00",
+    "library_version": "0.1.0",
+    "source": "debug_ui"
+  }
+}

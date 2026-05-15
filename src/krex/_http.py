@@ -55,15 +55,20 @@ class KexHttp:
     retry_backoff: float = 0.5
     session: Any = field(default_factory=_new_session, repr=False)
     ex_base_url: str = "https://data.ex.co.kr"
+    last_request: dict[str, Any] | None = field(default=None, init=False, repr=False)
+    last_response: dict[str, Any] | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
+        self.ex_api_key = normalize_api_key(self.ex_api_key)
+        self.go_api_key = normalize_api_key(self.go_api_key)
         if self.session is None:
             self.session = _new_session()
 
     def get_ex(self, path: str, params: dict[str, Any] | None = None) -> NormalizedPayload:
-        if not self.ex_api_key:
+        key = normalize_api_key(self.ex_api_key)
+        if not key:
             raise KexAuthError("KEX_EX_API_KEY is not set and ex_api_key was not provided")
-        query = {"key": self.ex_api_key, "type": "json"}
+        query = {"key": key, "type": "json"}
         if params:
             query.update(params)
         url = f"{self.ex_base_url.rstrip('/')}/{path.lstrip('/')}"
@@ -76,9 +81,10 @@ class KexHttp:
         *,
         standard: bool = False,
     ) -> NormalizedPayload:
-        if not self.go_api_key:
+        key = normalize_api_key(self.go_api_key)
+        if not key:
             raise KexAuthError("KEX_GO_API_KEY is not set and go_api_key was not provided")
-        query = {"serviceKey": self.go_api_key}
+        query = {"serviceKey": key}
         query["type" if standard else "_type"] = "json"
         if params:
             query.update(params)
@@ -88,6 +94,8 @@ class KexHttp:
         requests = _load_requests()
         attempts = max(0, self.max_retries) + 1
         last_error: KexNetworkError | None = None
+        self.last_request = {"method": "GET", "url": url, "query": _mask_params(params)}
+        self.last_response = None
 
         for attempt in range(attempts):
             try:
@@ -128,23 +136,29 @@ class KexHttp:
     ) -> NormalizedPayload:
         status = int(response.status_code)
         masked_params = _mask_params(params)
+        headers = _response_headers(response)
         if status in (401, 403):
+            self.last_response = _debug_response(status, headers, response.text[:200])
             raise KexAuthError(
                 f"HTTP {status}: {response.text[:200]}",
                 http_status=status,
                 params=masked_params,
             )
         if status == 400:
+            self.last_response = _debug_response(status, headers, response.text[:200])
             raise KexBadRequestError(response.text[:200], http_status=status, params=masked_params)
         if status == 404:
+            self.last_response = _debug_response(status, headers, response.text[:200])
             raise KexBadRequestError("endpoint not found", http_status=status, params=masked_params)
         if status == 429:
+            self.last_response = _debug_response(status, headers, response.text[:200])
             raise KexQuotaExceededError(
                 response.text[:200],
                 http_status=status,
                 params=masked_params,
             )
         if 500 <= status < 600:
+            self.last_response = _debug_response(status, headers, response.text[:200])
             raise KexServerError(
                 f"HTTP {status}: {response.text[:200]}",
                 http_status=status,
@@ -154,11 +168,13 @@ class KexHttp:
         try:
             payload = response.json()
         except ValueError as exc:
+            self.last_response = _debug_response(status, headers, response.text[:200])
             raise KexParseError(
                 f"JSON parse failure: {exc}",
                 http_status=status,
                 params=masked_params,
             ) from exc
+        self.last_response = _debug_response(status, headers, payload)
         if not isinstance(payload, dict):
             raise KexParseError(
                 "response JSON must be an object",
@@ -302,3 +318,23 @@ def _mask_params(params: dict[str, Any]) -> dict[str, Any]:
             value = str(masked[key])
             masked[key] = value[:4] + "..." if len(value) > 4 else "***"
     return masked
+
+
+def normalize_api_key(value: str | None) -> str | None:
+    """복사/붙여넣기 과정에서 섞인 모든 공백 문자를 제거합니다."""
+
+    if value is None:
+        return None
+    normalized = "".join(str(value).split())
+    return normalized or None
+
+
+def _response_headers(response: Any) -> dict[str, str]:
+    headers = getattr(response, "headers", {})
+    if not headers:
+        return {}
+    return {str(key): str(value) for key, value in dict(headers).items()}
+
+
+def _debug_response(status_code: int, headers: dict[str, str], body: Any) -> dict[str, Any]:
+    return {"status_code": status_code, "headers": headers, "body": body}

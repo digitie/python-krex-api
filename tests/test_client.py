@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -66,6 +67,32 @@ def go_payload(items: Any) -> dict[str, Any]:
             "body": {"items": {"item": items}, "pageNo": "1", "numOfRows": "10", "totalCount": "1"},
         }
     }
+
+
+def test_client_loads_local_dotenv_keys_by_default(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("KEX_EX_API_KEY", raising=False)
+    monkeypatch.delenv("KEX_GO_API_KEY", raising=False)
+    (tmp_path / ".env").write_text(
+        "KEX_EX_API_KEY= ex key \nKEX_GO_API_KEY=' go key '\n",
+        encoding="utf-8",
+    )
+
+    client = KexClient(retry_backoff=0, session=FakeSession(ex_payload([])))
+
+    assert client.ex_api_key == "exkey"
+    assert client.go_api_key == "gokey"
+
+
+def test_explicit_client_keys_are_normalized_before_env_fallback(tmp_path: Path) -> None:
+    (tmp_path / ".env").write_text("KEX_EX_API_KEY=env-key\n", encoding="utf-8")
+
+    client = KexClient(ex_api_key=" pasted \r\n key ", session=FakeSession(ex_payload([])))
+
+    assert client.ex_api_key == "pastedkey"
 
 
 def rest_weather_row(**overrides: Any) -> dict[str, Any]:

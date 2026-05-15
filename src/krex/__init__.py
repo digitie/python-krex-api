@@ -2,6 +2,7 @@
 
 from kraddr.base import Address, PlaceCoordinate
 
+from .catalog import get_api_catalog, get_api_catalog_item
 from .client import KexClient
 from .codes import (
     CarType,
@@ -15,6 +16,7 @@ from .codes import (
     TCSType,
     TimeUnit,
 )
+from .debug import DebugRun, jsonable, redact_sensitive, save_fixture
 from .exceptions import (
     KexAuthError,
     KexBadRequestError,
@@ -32,6 +34,7 @@ from .exceptions import (
     KexTimeoutError,
 )
 from .models import (
+    ApiCatalogItem,
     FoodPrice,
     Incident,
     KexModel,
@@ -50,11 +53,13 @@ from .models import (
 
 __all__ = [
     "Address",
+    "ApiCatalogItem",
     "CarType",
     "CongestionLevel",
     "CoordinateSystem",
     "Direction",
     "DiscountType",
+    "DebugRun",
     "FoodPrice",
     "IOType",
     "Incident",
@@ -90,4 +95,9 @@ __all__ = [
     "Tollgate",
     "TrafficByIc",
     "TrafficFlow",
+    "get_api_catalog",
+    "get_api_catalog_item",
+    "jsonable",
+    "redact_sensitive",
+    "save_fixture",
 ]

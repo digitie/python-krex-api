@@ -40,6 +40,7 @@ an explicit backlog for broader official coverage.
 | `facility.drowsy_shelter()` | `data.ex.co.kr` | `Page[dict]` | Yes | No | Path marked representative in `endpoints.md`. |
 | `facility.shoulder_lane()` | `data.go.kr` | `Page[dict]` | Yes | No | URL must be checked against the current data.go.kr guide before promoting to typed model. |
 | `admin.procurement_contracts()` | `data.go.kr` | `Page[dict]` | Yes | No | Dataset ID `15128076`; implemented as raw wrapper. |
+| `reference.api_catalog()` / `get_api_catalog()` | local | `tuple[ApiCatalogItem, ...]` | Yes | N/A | Human-readable dataset names, provider, endpoint, and service-key request links for implemented methods. |
 | `reference.common_codes()` | local | `dict[str, dict[str, str]]` | Yes | N/A | Local enum labels, not a live API. |
 | `reference.routes()` | local | `tuple[Route, ...]` | Yes | N/A | Small built-in route sample, not a full route master. |
 
@@ -48,10 +49,10 @@ an explicit backlog for broader official coverage.
 | Category | Count |
 |---|---:|
 | Methods documented in `endpoints.md` | 26 |
-| Methods implemented in `KexClient` namespaces | 26 |
+| Methods implemented in `KexClient` namespaces | 27 |
 | Methods with typed public models | 10 |
 | Methods returning raw `dict` records | 13 |
-| Local reference helpers | 2 |
+| Local reference helpers | 3 |
 | Methods live-verified against provider | 5 |
 
 ## Broader Official API Backlog

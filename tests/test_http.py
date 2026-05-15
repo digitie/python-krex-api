@@ -99,6 +99,32 @@ def test_get_go_standard_uses_type_not_underscore_type() -> None:
     assert payload.total_count == 1
 
 
+def test_api_keys_strip_copy_paste_whitespace() -> None:
+    session = FakeSession(
+        FakeResponse({"code": "SUCCESS", "list": [{"ok": "ex"}]}),
+        FakeResponse(
+            {
+                "response": {
+                    "header": {"resultCode": "00", "resultMsg": "OK"},
+                    "body": {"items": {"item": [{"ok": "go"}]}},
+                }
+            }
+        ),
+    )
+    http = KexHttp(
+        ex_api_key=" secret\r\n-key\t ",
+        go_api_key=" go \n key ",
+        retry_backoff=0,
+        session=session,
+    )
+
+    assert http.get_ex("/openapi/test").items == [{"ok": "ex"}]
+    assert http.get_go("https://api.example.test/rest").items == [{"ok": "go"}]
+
+    assert session.calls[0]["params"]["key"] == "secret-key"
+    assert session.calls[1]["params"]["serviceKey"] == "gokey"
+
+
 def test_get_ex_accepts_endpoint_named_top_level_list() -> None:
     session = FakeSession(
         FakeResponse(

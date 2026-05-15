@@ -6,6 +6,9 @@ This repository follows the same working shape as `pykma` and `pyopinet`.
 
 - Do not commit API keys. Use `KEX_EX_API_KEY` for `data.ex.co.kr` and
   `KEX_GO_API_KEY` for `data.go.kr`.
+- `KexClient()` may read the nearest local `.env` when those environment
+  variables are absent; never rely on that in committed tests except through
+  temporary `.env` fixtures.
 - Unit tests must not call the network. Use fake sessions or fixtures.
 - In documents, write file locations as project-root-relative paths such as
   `src/krex/client.py`; do not use local absolute paths.
@@ -32,6 +35,8 @@ This repository follows the same working shape as `pykma` and `pyopinet`.
 - Always inspect body-level API result codes. `data.go.kr` commonly returns
   HTTP 200 for application errors.
 - Keep API keys out of repr strings, failure messages, commits, and docs.
+- Keep debug UI dependencies out of this library. Use `KexClient.debug_call()`
+  and JSON fixtures for replayable UI-discovered cases.
 - When a sibling library such as `pykma` or `pyopinet` already has a verified
   implementation for the same provider endpoint, port that behavior directly
   into the existing `KexClient` namespace instead of adding a separate wrapper
@@ -45,6 +50,9 @@ This repository follows the same working shape as `pykma` and `pyopinet`.
 - `src/krex/codes.py`: enums and code labels.
 - `src/krex/models.py`: public Pydantic return models.
 - `src/krex/client.py`: high-level endpoint namespaces and parsing.
+- `src/krex/catalog.py`: implemented API catalog, human-readable dataset names,
+  and service-key request URLs for debug UIs.
+- `src/krex/debug.py`: `DebugRun`, JSON conversion, redaction, fixture writing.
 - `API_COVERAGE.md`: source-of-truth for implemented vs live-verified API
   status.
 
@@ -58,6 +66,9 @@ Every new endpoint wrapper should include tests for:
 - malformed response shape;
 - body-level API errors;
 - at least one successful typed model conversion.
+- debug/fixture support when the endpoint is intended to be captured from a UI:
+  add a `tests/runners.py` replay mapping and JSON fixture instead of generated
+  one-off pytest files.
 
 ## Documentation Bar
 

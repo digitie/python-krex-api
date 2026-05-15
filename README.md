@@ -12,6 +12,8 @@
 
 - **네임스페이스형 클라이언트**: `client.traffic.flow()`, `client.tollfee.between_tollgates()`처럼 문서의 API 범주와 같은 구조로 호출합니다.
 - **두 포털 동시 지원**: `data.ex.co.kr` 키(`KEX_EX_API_KEY`)와 `data.go.kr` 키(`KEX_GO_API_KEY`)를 분리해 사용합니다.
+- **로컬 `.env` 기본 로딩**: 환경변수가 없으면 현재 작업 디렉터리부터 부모 디렉터리의 `.env`를 찾아 키를 읽고, 복붙 과정에서 섞인 공백 문자를 제거합니다.
+- **API 카탈로그**: 구현된 API의 함수명, 데이터셋명, 포털, 엔드포인트, 서비스키 발급/활용신청 링크를 `get_api_catalog()`로 조회할 수 있습니다.
 - **Python 타입 변환**: 날짜, 숫자, Y/N 플래그, 코드값을 `date`, `int`, `float`, `bool`, `StrEnum`으로 변환합니다.
 - **Pydantic 응답 모델**: 공개 모델은 불변 `BaseModel` 기반이라 `model_dump()`, `model_validate()`, `model_json_schema()`를 외부 프로그램에서 바로 사용할 수 있습니다.
 - **명확한 예외 계층**: 인증, 한도 초과, 파라미터 오류, 데이터 없음, 서버 오류, 파싱 오류, 네트워크 오류를 구분합니다.
@@ -35,6 +37,15 @@ Windows PowerShell:
 $env:KEX_EX_API_KEY="data.ex.co.kr에서_발급받은_키"
 $env:KEX_GO_API_KEY="data.go.kr에서_발급받은_decoding_키"
 ```
+
+또는 프로젝트 루트의 `.env`에 저장해도 됩니다. `KexClient()`와 `KexClient.from_env()`는 명시 인자가 없으면 환경변수를 먼저 보고, 없으면 가장 가까운 `.env`를 자동으로 읽습니다.
+
+```dotenv
+KEX_EX_API_KEY=data.ex.co.kr에서_발급받은_키
+KEX_GO_API_KEY=data.go.kr에서_발급받은_decoding_키
+```
+
+웹 화면에서 키를 복사하며 줄바꿈, 탭, 앞뒤 공백이 섞여도 호출 전에 제거됩니다.
 
 `requests.get(..., params=...)`로 전달하므로 `data.go.kr` 키는 Decoding 값을 권장합니다.
 
@@ -102,7 +113,7 @@ client = KexClient(
 )
 ```
 
-실제 운영 코드에서는 키를 코드에 직접 적지 말고 Secret Manager, `.env`, CI/CD secret 같은 외부 설정에서 읽어오세요.
+실제 운영 코드에서는 키를 코드에 직접 적지 말고 Secret Manager, `.env`, CI/CD secret 같은 외부 설정에서 읽어오세요. 로컬 개발에서는 `.env`가 기본값으로 로드되지만, 배포 환경에서는 Secret Manager나 배포 플랫폼의 secret을 권장합니다.
 
 ---
 
@@ -129,10 +140,40 @@ client = KexClient(
 | 시설 | `facility.drowsy_shelter()` | `data.ex.co.kr` | `Page[dict]` |
 | 시설 | `facility.shoulder_lane()` | `data.go.kr` | `Page[dict]` |
 | 행정 | `admin.procurement_contracts()` | `data.go.kr` | `Page[dict]` |
+| 기준정보 | `reference.api_catalog()` | 내장 카탈로그 | `tuple[ApiCatalogItem, ...]` |
 | 기준정보 | `reference.routes()` | 내장 코드표 | `tuple[Route, ...]` |
 | 기준정보 | `reference.common_codes()` | 내장 코드표 | `dict[str, dict[str, str]]` |
 
 상세 파라미터와 응답 필드는 [endpoints.md](endpoints.md)를 기준으로 관리합니다.
+
+---
+
+## API 카탈로그
+
+구현된 API 목록은 라이브러리에서 바로 조회할 수 있습니다. `dataset_name`은 UI에 사람이 읽기 좋은 데이터셋명으로 표시하기 위한 값이고, `service_key_url`은 해당 포털의 인증키 발급 또는 활용신청 화면으로 연결됩니다.
+
+```python
+from krex import get_api_catalog, get_api_catalog_item
+
+for item in get_api_catalog(namespace="restarea"):
+    print(item.function, item.dataset_name, item.service_key_url)
+
+weather = get_api_catalog_item("restarea.weather")
+if weather:
+    print(weather.dataset_name)
+```
+
+Streamlit 같은 외부 디버그 UI에서는 `debug_call()` 결과의 `catalog` 필드를 Debug Trace 탭에 그대로 표시할 수 있습니다.
+
+```python
+run = client.debug_call("restarea.weather", sdate="20210507", std_hour=12)
+
+if run.catalog:
+    st.write("데이터셋", run.catalog["dataset_name"])
+    if run.catalog.get("service_key_url"):
+        st.link_button("서비스키 발급/활용신청", run.catalog["service_key_url"])
+    st.dataframe([run.catalog])
+```
 
 ---
 
@@ -297,6 +338,36 @@ client = KexClient(ex_api_key="test-key", session=Session())
 
 새 엔드포인트를 추가할 때는 이 방식으로 쿼리 파라미터와 파싱 결과를 먼저 고정한 뒤, 필요하면 별도의 `@pytest.mark.live` 테스트를 추가합니다.
 
+### DebugRun과 fixture replay
+
+디버그 UI나 임시 확인 도구는 라이브러리를 직접 호출하되, Streamlit 같은 UI 의존성을 이 패키지에 넣지 않습니다. 대신 `debug_call()`로 실행 정보를 모으고 `save_fixture()`로 replay 가능한 JSON fixture를 저장합니다.
+
+```python
+from krex import KexClient, save_fixture
+
+client = KexClient.from_env()
+run = client.debug_call("restarea.weather", sdate="20210507", std_hour=12)
+
+print(run.catalog["dataset_name"])       # 한국도로공사_휴게소별 날씨
+print(run.catalog["service_key_url"])    # 서비스키 발급/활용신청 링크
+
+save_fixture(
+    base_dir="tests/fixtures",
+    function_name=run.function,
+    case_name="weather_normal",
+    description="휴게소 날씨 정상 응답",
+    input_data=run.input,
+    request_data=run.request,
+    response_data=run.response,
+    parsed_result=run.parsed,
+    processed_result=run.processed,
+)
+```
+
+Fixture 저장 전 `key`, `serviceKey`, `Authorization`, `api_key`, token 계열 필드는 `<REDACTED>`로 마스킹됩니다. 저장된 fixture는 `tests/test_generated_fixtures.py`가 외부 API 호출 없이 raw response를 다시 파싱해 회귀 테스트로 실행합니다.
+
+현재 `DebugRun.parsed`와 `DebugRun.processed`는 같은 값입니다. 특정 엔드포인트에 별도 가공 단계가 생기면 `tests/runners.py`의 `process` 함수와 fixture의 `processed` 기대값을 함께 갱신하세요.
+
 ### 실제 data.ex.co.kr 테스트
 
 실제 서버 테스트는 기본 테스트에서 자동 실행되지 않습니다. 로컬 `.env`에 키를 저장하고 `KEX_LIVE=1`을 명시했을 때만 실행됩니다.
@@ -372,11 +443,14 @@ ruff check .
 | 모듈 | 책임 |
 |---|---|
 | `src/krex/client.py` | 사용자용 `KexClient`, 엔드포인트 네임스페이스, 모델 파싱 |
+| `src/krex/catalog.py` | 구현 API 카탈로그, 데이터셋명, 서비스키 발급/활용신청 링크 |
+| `src/krex/_env.py` | 로컬 `.env` 키 로딩 |
 | `src/krex/_http.py` | HTTP 호출, retry, 포털별 envelope 정규화, 에러 매핑 |
 | `src/krex/_convert.py` | 문자열 기반 API 응답을 Python 타입으로 변환 |
 | `src/krex/codes.py` | 안정적인 코드값 enum과 라벨 |
 | `src/krex/models.py` | public Pydantic 반환 모델 |
 | `src/krex/exceptions.py` | 예외 계층 |
+| `src/krex/debug.py` | `DebugRun`, JSON 변환, 민감정보 마스킹, fixture 저장 |
 
 새 기능을 넣을 때는 보통 `src/krex/codes.py`와 `src/krex/models.py`를 먼저 보강하고, `src/krex/client.py`에서 메서드를 연결한 뒤, `tests/`에서 fake 응답으로 쿼리와 변환을 잠급니다.
 
@@ -387,14 +461,20 @@ ruff check .
 ```text
 src/krex/
 ├── __init__.py
+├── _env.py
+├── catalog.py
 ├── client.py
 ├── _http.py
 ├── _convert.py
 ├── codes.py
 ├── exceptions.py
+├── debug.py
 ├── models.py
 └── py.typed
 tests/
+├── fixtures/
+├── runners.py
+├── utils.py
 └── test_*.py
 ```
 

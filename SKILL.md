@@ -23,7 +23,8 @@ The public package import name is `krex`; the distribution name is
 - Read `API_COVERAGE.md` before claiming an API is supported or live-verified.
 - Keep the implementation shape aligned with `pykma` and `pyopinet`:
   `src/krex/client.py`, `src/krex/_http.py`, `src/krex/_convert.py`,
-  `src/krex/codes.py`, `src/krex/models.py`, `src/krex/exceptions.py`.
+  `src/krex/codes.py`, `src/krex/models.py`, `src/krex/catalog.py`,
+  `src/krex/exceptions.py`, `src/krex/debug.py`.
 - Do not add live network calls to ordinary tests.
 - Do not commit API keys or generated caches.
 - Write file locations in documents as project-root-relative paths, for example
@@ -52,6 +53,8 @@ The public package import name is `krex`; the distribution name is
 - `KEX_EX_API_KEY`: `data.ex.co.kr` key.
 - `KEX_GO_API_KEY`: `data.go.kr` key. Prefer the decoded key when using
   `requests` query params.
+- `KexClient()` falls back to the nearest local `.env` when environment
+  variables are absent, and normalizes copy-paste whitespace out of keys.
 - If a user pastes a key into chat or a file, tell them to rotate it and remove
   the key from the working tree.
 
@@ -120,6 +123,8 @@ Update documentation in the same change:
 - `README.md`: add user-facing usage only when the endpoint is meant to be public.
 - `endpoints.md`: add source portal, path, method name, parameters, and known response fields.
 - `API_COVERAGE.md`: update implementation state and live verification status.
+- `src/krex/catalog.py`: update human-readable dataset names, provider,
+  endpoint, fixture status, and service-key request URLs.
 - `codes.md`: add any stable code table used by public parameters or models.
 - `error-codes.md`: add newly observed provider error codes.
 - `AGENTS.md` or this `SKILL.md`: add any repeated mistake discovered during implementation.
@@ -134,6 +139,12 @@ Update documentation in the same change:
 - Do not let raw API strings leak for stable code values that have enums.
 - Do not add endpoint paths from guesses without documenting that they are unverified.
 - Do not make tests depend on current public portal data.
+- Do not add Streamlit or debug UI dependencies to this library. UI projects
+  should import the wheel or editable install and use `KexClient.debug_call()`.
+- Do not generate one pytest file per saved API case. Save JSON under
+  `tests/fixtures/` and replay it through `tests/test_generated_fixtures.py`.
+- Do not commit fixture files until API keys, Authorization headers, and token
+  fields are visibly redacted.
 - Do not parse money or traffic values by hand at call sites. Keep conversion in
   `src/krex/_convert.py` or model parser helpers.
 - Do not expose a new Pydantic model until at least one realistic fixture or fake

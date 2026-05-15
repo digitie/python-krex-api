@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from kraddr.base import Address, PlaceCoordinate
 
@@ -17,7 +16,9 @@ from ._convert import (
     to_float_or_none,
     to_int_or_none,
 )
-from ._http import KexHttp, NormalizedPayload
+from ._env import get_local_env_value
+from ._http import KexHttp, NormalizedPayload, normalize_api_key
+from .catalog import get_api_catalog, get_api_catalog_item
 from .codes import (
     ROUTE_NAMES,
     CarType,
@@ -32,8 +33,10 @@ from .codes import (
     TimeUnit,
     coerce_code,
 )
+from .debug import DebugRun, exception_to_debug_error, jsonable
 from .exceptions import KexInvalidParameterError, KexNotFoundError, KexParseError
 from .models import (
+    ApiCatalogItem,
     FoodPrice,
     Incident,
     Page,
@@ -73,8 +76,12 @@ class KexClient:
         retry_backoff: float = 0.5,
         session: Any | None = None,
     ) -> None:
-        self.ex_api_key = ex_api_key or os.getenv("KEX_EX_API_KEY")
-        self.go_api_key = go_api_key or os.getenv("KEX_GO_API_KEY")
+        self.ex_api_key = normalize_api_key(ex_api_key) or normalize_api_key(
+            get_local_env_value("KEX_EX_API_KEY")
+        )
+        self.go_api_key = normalize_api_key(go_api_key) or normalize_api_key(
+            get_local_env_value("KEX_GO_API_KEY")
+        )
         self.strict_no_data = strict_no_data
         self._http = KexHttp(
             self.ex_api_key,
@@ -94,6 +101,52 @@ class KexClient:
     @classmethod
     def from_env(cls, **kwargs: Any) -> KexClient:
         return cls(**kwargs)
+
+    def debug_call(self, function: str, **params: Any) -> DebugRun:
+        """외부 Debug UI가 사용할 수 있는 단일 함수 실행 정보를 반환합니다."""
+
+        trace = [f"resolve {function}"]
+        catalog_item = get_api_catalog_item(function)
+        catalog = jsonable(catalog_item) if catalog_item is not None else None
+        if catalog_item is not None:
+            trace.append(f"catalog dataset: {catalog_item.dataset_name}")
+            if catalog_item.service_key_url:
+                trace.append(f"service key URL: {catalog_item.service_key_url}")
+        parsed: Any = None
+        processed: Any = None
+        error: dict[str, Any] | None = None
+        self._http.last_request = None
+        self._http.last_response = None
+        try:
+            method = self._resolve_debug_function(function)
+            trace.append("call public client method")
+            parsed = method(**params)
+            processed = parsed
+            trace.append("call completed")
+        except Exception as exc:  # noqa: BLE001 - 디버그 UI는 예외를 화면에 보여줘야 합니다.
+            error = exception_to_debug_error(exc)
+            trace.append(f"error: {type(exc).__name__}")
+        return DebugRun(
+            function=function,
+            input=dict(params),
+            request=self._http.last_request or {},
+            response=self._http.last_response or {},
+            parsed=parsed,
+            processed=processed,
+            trace=trace,
+            catalog=catalog,
+            error=error,
+        )
+
+    def _resolve_debug_function(self, function: str) -> Callable[..., Any]:
+        parts = function.split(".")
+        if len(parts) != 2 or any(part.startswith("_") or not part for part in parts):
+            raise KexInvalidParameterError("function must look like 'namespace.method'")
+        namespace = getattr(self, parts[0], None)
+        method = getattr(namespace, parts[1], None)
+        if not callable(method):
+            raise KexInvalidParameterError(f"unknown debug function: {function}")
+        return cast(Callable[..., Any], method)
 
     def _page_ex(
         self,
@@ -461,6 +514,14 @@ class AdminNamespace:
 @dataclass(frozen=True, slots=True)
 class ReferenceNamespace:
     _client: KexClient
+
+    def api_catalog(
+        self,
+        *,
+        provider: str | None = None,
+        namespace: str | None = None,
+    ) -> tuple[ApiCatalogItem, ...]:
+        return get_api_catalog(provider=provider, namespace=namespace)
 
     def routes(self) -> tuple[Route, ...]:
         return tuple(

@@ -43,6 +43,24 @@ If the path or schema is not verified, return `Page[dict]` and document that
 status clearly. We can always make a typed model later; removing a wrong public
 model is harder.
 
+## Debug Fixtures
+
+The debug UI workflow is fixture-first:
+
+- Keep Streamlit or other UI dependencies outside this library.
+- Use `KexClient.debug_call()` to capture input, request, response, parsed,
+  processed, trace, catalog, and error fields in a `DebugRun`.
+- Keep `src/krex/catalog.py` updated so debug UIs can show human-readable
+  dataset names and service-key request links.
+- Save meaningful cases with `krex.save_fixture()` under
+  `tests/fixtures/{function}/{case}.json`.
+- Never store API keys, Authorization headers, or token values. The fixture
+  writer redacts known sensitive keys, but review generated files before
+  committing them.
+- Add or update `tests/runners.py` when a fixture targets a new function.
+- Let `tests/test_generated_fixtures.py` replay fixture raw responses; do not
+  generate one pytest file per case.
+
 ## Porting From Sibling Libraries
 
 When `pykma`, `pyopinet`, or another sibling project already has a tested
