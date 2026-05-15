@@ -175,6 +175,15 @@ if run.catalog:
     st.dataframe([run.catalog])
 ```
 
+이 저장소에는 같은 흐름을 바로 확인할 수 있는 예제 UI가 있습니다.
+
+```powershell
+pip install -e ".[debug-ui]"
+python -m streamlit run examples/streamlit_debug_ui.py --server.port 8504
+```
+
+예제 UI는 API 선택 시 데이터셋명과 서비스키 받기 링크를 보여주고, 실행 시 `Debug Trace` 탭에서 `DebugRun.catalog`를 함께 표시합니다. 키 입력칸을 비워두면 `KexClient()`와 동일하게 환경변수 또는 로컬 `.env`의 값을 기본으로 사용합니다.
+
 ---
 
 ## 구현 상태
