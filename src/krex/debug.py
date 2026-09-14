@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel
 
+from ._http import _redact_secrets
 from .exceptions import KrexError
 
 SENSITIVE_KEYS = frozenset(
@@ -138,7 +139,8 @@ def build_fixture(
         "response": redact_sensitive(jsonable(response_data)),
         "parsed": jsonable(parsed_result),
         "processed": jsonable(processed_result),
-        "assertion": assertion or {
+        "assertion": assertion
+        or {
             "mode": "snapshot",
             "exclude_fields": list(DEFAULT_EXCLUDE_FIELDS),
             "required_fields": [],
@@ -227,9 +229,7 @@ def exception_to_debug_error(exc: BaseException) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "type": type(exc).__name__,
         "message": str(exc),
-        "traceback": "".join(
-            _traceback.format_exception(type(exc), exc, exc.__traceback__)
-        ),
+        "traceback": "".join(_traceback.format_exception(type(exc), exc, exc.__traceback__)),
     }
     if isinstance(exc, KrexError):
         payload.update(
@@ -247,3 +247,28 @@ def exception_to_debug_error(exc: BaseException) -> dict[str, Any]:
 def _sensitive_key(key: str) -> bool:
     normalized = key.lower().replace("-", "_")
     return normalized in SENSITIVE_KEYS
+
+
+def safe_debug_value(obj: Any, secrets: tuple[str | None, ...]) -> Any:
+    """모델 검증을 마친 후 진단용 복사본의 키를 마스킹한다."""
+    if isinstance(obj, Enum):
+        return obj
+    if isinstance(obj, BaseModel):
+        return obj.model_copy(
+            update={
+                name: safe_debug_value(getattr(obj, name), secrets)
+                for name in type(obj).model_fields
+            }
+        )
+    if isinstance(obj, Mapping):
+        return {
+            str(key): "<REDACTED>" if _sensitive_key(str(key)) else safe_debug_value(value, secrets)
+            for key, value in obj.items()
+        }
+    if isinstance(obj, tuple):
+        return tuple(safe_debug_value(item, secrets) for item in obj)
+    if isinstance(obj, list):
+        return [safe_debug_value(item, secrets) for item in obj]
+    if isinstance(obj, str):
+        return _redact_secrets(obj, secrets)
+    return obj

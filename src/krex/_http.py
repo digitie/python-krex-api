@@ -4,12 +4,18 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-import threading
-from collections.abc import Awaitable, Coroutine
+import logging
+import re
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
-from typing import Any, TypeVar, cast
+from typing import Any
+from urllib.parse import quote, quote_plus
 
 from ._convert import normalize_items, to_int_or_none
+from ._httpx import send_after_token
+from ._ratelimit import AsyncTokenBucket
 from .exceptions import (
     KrexAuthError,
     KrexBadRequestError,
@@ -18,7 +24,6 @@ from .exceptions import (
     KrexError,
     KrexInvalidParameterError,
     KrexMissingParameterError,
-    KrexNetworkError,
     KrexNotFoundError,
     KrexParseError,
     KrexQuotaExceededError,
@@ -27,9 +32,18 @@ from .exceptions import (
     KrexTimeoutError,
 )
 
-T = TypeVar("T")
-
 _MAX_BACKOFF_SECONDS = 30.0
+_KEY_QUERY = re.compile(r"(?i)([?&](?:key|servicekey)=)[^&\s\"<>]+")
+
+
+class _KeyLogFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.msg = _KEY_QUERY.sub(r"\1<REDACTED>", record.getMessage())
+        record.args = ()
+        return True
+
+
+logging.getLogger("httpx").addFilter(_KeyLogFilter())
 
 
 def _load_httpx() -> Any:
@@ -38,44 +52,6 @@ def _load_httpx() -> Any:
     except ModuleNotFoundError as exc:
         raise KrexConfigError("httpx is required; install python-krex-api dependencies") from exc
     return httpx
-
-
-def _run_sync(coroutine: Coroutine[Any, Any, T], *, timeout: float | None = None) -> T:
-    """Run async transport code from the sync public API.
-
-    Streamlit, notebooks, and GUI apps may already have a running event loop. In that case the
-    coroutine is executed in a short-lived worker thread with its own loop so the sync API remains
-    usable without nesting event loops.
-    """
-
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coroutine)
-
-    result: list[T] = []
-    errors: list[BaseException] = []
-
-    def runner() -> None:
-        try:
-            result.append(asyncio.run(coroutine))
-        except BaseException as exc:  # noqa: BLE001 - propagate the original transport error.
-            errors.append(exc)
-
-    thread = threading.Thread(target=runner, daemon=True)
-    thread.start()
-    thread.join(timeout=timeout)
-    if thread.is_alive():
-        raise KrexTimeoutError("sync API call timed out waiting for background event loop thread")
-    if errors:
-        raise errors[0]
-    return result[0]
-
-
-async def _maybe_await(value: T | Awaitable[T]) -> T:
-    if inspect.isawaitable(value):
-        return await cast(Awaitable[T], value)
-    return value
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +63,10 @@ class NormalizedPayload:
     raw: dict[str, Any]
 
 
+DEFAULT_MAX_RPS: float = 5.0
+"""기본 요청 속도. 버스트를 허용하지 않는 capacity=1을 사용한다."""
+
+
 @dataclass(slots=True)
 class KrexHttp:
     ex_api_key: str | None = field(default=None, repr=False)
@@ -96,17 +76,62 @@ class KrexHttp:
     retry_backoff: float = 0.5
     session: Any | None = field(default=None, repr=False)
     ex_base_url: str = "https://data.ex.co.kr"
-    last_request: dict[str, Any] | None = field(default=None, init=False, repr=False)
-    last_response: dict[str, Any] | None = field(default=None, init=False, repr=False)
+    max_rps: float = DEFAULT_MAX_RPS
+    """초당 요청 상한. krex의 제약은 일일 한도가 아니라 TPS다(기본 5)."""
+    rate_limiter: AsyncTokenBucket | None = None
+    _closed: bool = field(default=False, init=False, repr=False)
+    _owns_session: bool = field(default=False, init=False, repr=False)
+    _diagnostics: ContextVar[dict[str, Any] | None] = field(
+        default_factory=lambda: ContextVar("krex_diagnostics", default=None), init=False, repr=False
+    )
 
     def __post_init__(self) -> None:
         self.ex_api_key = normalize_api_key(self.ex_api_key)
         self.go_api_key = normalize_api_key(self.go_api_key)
+        if self.rate_limiter is None:
+            self.rate_limiter = AsyncTokenBucket(self.max_rps, capacity=1)
+        if self.session is not None and not inspect.iscoroutinefunction(self.session.get):
+            raise TypeError("session must provide an async get method")
+        self._owns_session = self.session is None
 
-    def get_ex(self, path: str, params: dict[str, Any] | None = None) -> NormalizedPayload:
-        return _run_sync(self.aget_ex(path, params), timeout=self._sync_join_timeout())
+    @property
+    def last_request(self) -> dict[str, Any] | None:
+        return (self._diagnostics.get() or {}).get("request")
 
-    async def aget_ex(self, path: str, params: dict[str, Any] | None = None) -> NormalizedPayload:
+    @last_request.setter
+    def last_request(self, value: dict[str, Any] | None) -> None:
+        self._diagnostics.set({**(self._diagnostics.get() or {}), "request": value})
+
+    @property
+    def last_response(self) -> dict[str, Any] | None:
+        return (self._diagnostics.get() or {}).get("response")
+
+    @last_response.setter
+    def last_response(self, value: dict[str, Any] | None) -> None:
+        self._diagnostics.set({**(self._diagnostics.get() or {}), "response": value})
+
+    @contextmanager
+    def capture_calls(self) -> Iterator[None]:
+        """현재 진단 호출을 격리하고 취소·예외 시에도 복구한다."""
+        token = self._diagnostics.set(None)
+        try:
+            yield
+        finally:
+            self._diagnostics.reset(token)
+
+    def protect_error(self, exc: KrexError) -> None:
+        """오류 종류를 판별한 후 외부 표시와 첨부 응답에서 키를 제거한다."""
+        secrets = (self.ex_api_key, self.go_api_key)
+        exc.message = _redact_secrets(str(exc), secrets)
+        exc.args = (exc.message,)
+        if exc.code is not None:
+            exc.code = _redact_secrets(exc.code, secrets)
+        exc.response = _redact_payload(exc.response, secrets)
+        exc.params = _redact_payload(exc.params, secrets)
+        if exc.url is not None:
+            exc.url = _redact_secrets(exc.url, secrets)
+
+    async def get_ex(self, path: str, params: dict[str, Any] | None = None) -> NormalizedPayload:
         key = normalize_api_key(self.ex_api_key)
         if not key:
             raise KrexAuthError("KEX_EX_API_KEY is not set and ex_api_key was not provided")
@@ -116,18 +141,7 @@ class KrexHttp:
         url = f"{self.ex_base_url.rstrip('/')}/{path.lstrip('/')}"
         return await self._get(url, query, provider="ex")
 
-    def get_go(
-        self,
-        url: str,
-        params: dict[str, Any] | None = None,
-        *,
-        standard: bool = False,
-    ) -> NormalizedPayload:
-        return _run_sync(
-            self.aget_go(url, params, standard=standard), timeout=self._sync_join_timeout()
-        )
-
-    async def aget_go(
+    async def get_go(
         self,
         url: str,
         params: dict[str, Any] | None = None,
@@ -143,92 +157,77 @@ class KrexHttp:
         return await self._get(url, query, provider="go")
 
     async def _get(self, url: str, params: dict[str, Any], *, provider: str) -> NormalizedPayload:
+        if self._closed:
+            raise RuntimeError("Krex transport is closed")
         httpx = _load_httpx()
+        self._validate_auth(httpx)
         attempts = max(0, self.max_retries) + 1
-        last_error: KrexNetworkError | None = None
         self.last_request = {"method": "GET", "url": url, "query": _mask_params(params)}
         self.last_response = None
-        session = self.session
-        close_after_request = False
-        if session is None:
-            session = httpx.AsyncClient(timeout=self.timeout, follow_redirects=True)
-            close_after_request = True
-
+        if self.session is None:
+            self.session = httpx.AsyncClient(timeout=self.timeout, follow_redirects=True)
+        secrets = (self.ex_api_key, self.go_api_key)
         try:
             for attempt in range(attempts):
+                assert self.rate_limiter is not None
+                await self.rate_limiter.acquire()
+                if self._closed:
+                    raise RuntimeError("Krex transport is closed")
+                self._validate_auth(httpx)
                 try:
-                    response = await self._request_get(session, url, params)
-                except httpx.TimeoutException as exc:
-                    last_error = KrexTimeoutError(str(exc), url=url, params=_mask_params(params))
-                    if attempt < attempts - 1:
-                        await self._sleep_before_retry(attempt)
-                        continue
-                    raise last_error from exc
-                except httpx.NetworkError as exc:
-                    last_error = KrexConnectionError(str(exc), url=url, params=_mask_params(params))
-                    if attempt < attempts - 1:
-                        await self._sleep_before_retry(attempt)
-                        continue
-                    raise last_error from exc
+                    if isinstance(self.session, httpx.AsyncClient):
+                        request = self.session.build_request(
+                            "GET", url, params=params, timeout=self.timeout
+                        )
+                        response = await send_after_token(self.session, request, self.rate_limiter)
+                    else:
+                        response = await self.session.get(url, params=params, timeout=self.timeout)
                 except httpx.TooManyRedirects as exc:
                     raise KrexConnectionError(
-                        str(exc), url=url, params=_mask_params(params)
-                    ) from exc
+                        _redact_secrets(str(exc), secrets), url=url, params=_mask_params(params)
+                    ) from None
                 except httpx.HTTPError as exc:
-                    last_error = KrexConnectionError(str(exc), url=url, params=_mask_params(params))
+                    error_type = (
+                        KrexTimeoutError
+                        if isinstance(exc, httpx.TimeoutException)
+                        else KrexConnectionError
+                    )
                     if attempt < attempts - 1:
                         await self._sleep_before_retry(attempt)
                         continue
-                    raise last_error from exc
-                except Exception as exc:  # noqa: BLE001 - normalize non-httpx session failures.
-                    last_error = KrexNetworkError(str(exc), url=url, params=_mask_params(params))
-                    if attempt < attempts - 1:
-                        await self._sleep_before_retry(attempt)
-                        continue
-                    raise last_error from exc
-
+                    raise error_type(
+                        _redact_secrets(str(exc), secrets), url=url, params=_mask_params(params)
+                    ) from None
                 if 500 <= response.status_code < 600 and attempt < attempts - 1:
                     await self._sleep_before_retry(attempt)
                     continue
-
                 return self._raise_for_response(response, provider=provider, params=params)
-        finally:
-            if close_after_request:
-                await _close_session(session)
-
-        if last_error is not None:
-            raise last_error
+        except KrexError as exc:
+            self.protect_error(exc)
+            raise exc from None
         raise KrexServerError("request failed after retries", url=url, params=_mask_params(params))
 
-    async def _request_get(self, session: Any, url: str, params: dict[str, Any]) -> Any:
-        response = session.get(url, params=params, timeout=self.timeout)
-        return await _maybe_await(response)
+    def _validate_auth(self, httpx: Any) -> None:
+        if isinstance(self.session, httpx.AsyncClient):
+            auth = self.session.auth
+            if auth is not None and type(auth) not in {httpx.Auth, httpx.BasicAuth}:
+                raise TypeError("session auth must not send additional authentication requests")
 
     async def _sleep_before_retry(self, attempt: int) -> None:
         if self.retry_backoff > 0:
             await asyncio.sleep(min(self.retry_backoff * (2**attempt), _MAX_BACKOFF_SECONDS))
 
     async def aclose(self) -> None:
-        if self.session is not None:
-            await _close_session(self.session)
-
-    def close(self) -> None:
-        _run_sync(self.aclose(), timeout=self.timeout)
-
-    def _sync_join_timeout(self) -> float:
-        return self.timeout * (max(0, self.max_retries) + 1) * 2
+        if not self._closed:
+            self._closed = True
+            if self._owns_session and self.session is not None:
+                await self.session.aclose()
 
     async def __aenter__(self) -> KrexHttp:
         return self
 
     async def __aexit__(self, *_exc_info: Any) -> None:
         await self.aclose()
-
-    def __enter__(self) -> KrexHttp:
-        return self
-
-    def __exit__(self, *_exc_info: Any) -> None:
-        self.close()
 
     def _raise_for_response(
         self,
@@ -241,7 +240,7 @@ class KrexHttp:
         masked_params = _mask_params(params)
         headers = _response_headers(response)
         secrets = (self.ex_api_key, self.go_api_key)
-        body_preview = _redact_secrets(response.text[:200], secrets)
+        body_preview = _redact_secrets(response.text, secrets)[:200]
         if status in (401, 403):
             self.last_response = _debug_response(status, headers, body_preview)
             raise KrexAuthError(
@@ -446,7 +445,7 @@ def _raise_go_code(
 
 
 def _mask_value(value: str) -> str:
-    return value[:4] + "..." if len(value) > 4 else "***"
+    return "<REDACTED>"
 
 
 def _mask_params(params: dict[str, Any]) -> dict[str, Any]:
@@ -458,9 +457,14 @@ def _mask_params(params: dict[str, Any]) -> dict[str, Any]:
 
 
 def _redact_secrets(text: str, secrets: tuple[str | None, ...]) -> str:
-    for secret in secrets:
-        if secret and len(secret) > 4:
-            text = text.replace(secret, _mask_value(secret))
+    variants = {
+        value
+        for secret in secrets
+        if secret
+        for value in (secret, quote(secret, safe=""), quote_plus(secret))
+    }
+    for value in sorted(variants, key=len, reverse=True):
+        text = text.replace(value, "<REDACTED>")
     return text
 
 
@@ -469,8 +473,10 @@ def _redact_payload(value: Any, secrets: tuple[str | None, ...]) -> Any:
         return {key: _redact_payload(item, secrets) for key, item in value.items()}
     if isinstance(value, list):
         return [_redact_payload(item, secrets) for item in value]
-    if isinstance(value, str) and value in secrets:
-        return _mask_value(value)
+    if isinstance(value, tuple):
+        return tuple(_redact_payload(item, secrets) for item in value)
+    if isinstance(value, str):
+        return _redact_secrets(value, secrets)
     return value
 
 
@@ -492,13 +498,3 @@ def _response_headers(response: Any) -> dict[str, str]:
 
 def _debug_response(status_code: int, headers: dict[str, str], body: Any) -> dict[str, Any]:
     return {"status_code": status_code, "headers": headers, "body": body}
-
-
-async def _close_session(session: Any) -> None:
-    aclose = getattr(session, "aclose", None)
-    if callable(aclose):
-        await _maybe_await(aclose())
-        return
-    close = getattr(session, "close", None)
-    if callable(close):
-        await _maybe_await(close())

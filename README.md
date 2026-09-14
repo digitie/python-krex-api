@@ -82,16 +82,17 @@ pip install python-krex-api
 
 ### 3단계: 사용
 
-`KrexClient`는 동기 클라이언트가 기본이고, `KrexClient.aio()`는 같은 namespace/메서드를 그대로 `await`할 수 있는 비동기 진입점입니다(`python-krheritage-api`와 같은 스타일). asyncio 애플리케이션이라면 이 방식을 대표 예제로 사용하세요.
+`KrexClient`는 native async 전용 클라이언트입니다. 모든 네트워크 namespace 메서드에 `await`를 사용하고 `async with`로 HTTP 세션을 정리합니다. 코드표와 로컬 기준정보 함수는 일반 함수로 유지합니다.
 
 ```python
+import streamlit as st
 import asyncio
 
 from krex import CarType, KrexClient
 
 
 async def main() -> None:
-    async with KrexClient.aio() as client:
+    async with KrexClient() as client:
         # 실시간 소통
         flows = await client.traffic.flow(route_no="0010")
         for item in flows.items[:5]:
@@ -125,23 +126,29 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-스크립트나 동기 코드베이스에서는 `from_env()`로 만든 동기 클라이언트를 그대로 사용할 수 있습니다.
+스크립트에서는 `from_env()`로 설정을 읽고 `asyncio.run()`으로 비동기 진입점을 실행합니다.
 
 ```python
+import asyncio
 from krex import CarType, KrexClient
 
-client = KrexClient.from_env()
 
-flows = client.traffic.flow(route_no="0010")
-for item in flows.items[:5]:
-    print(item.route_name, item.conzone_name, item.speed, item.congestion_level)
+async def main() -> None:
+    async with KrexClient.from_env() as client:
 
-fees = client.tollfee.between_tollgates(
-    start_unit_code="101",
-    end_unit_code="105",
-    car_type=CarType.LIGHT,
-)
-print(fees.items[0].toll_fee)
+        flows = (await client.traffic.flow(route_no="0010"))
+        for item in flows.items[:5]:
+            print(item.route_name, item.conzone_name, item.speed, item.congestion_level)
+
+        fees = (await client.tollfee.between_tollgates(
+            start_unit_code="101",
+            end_unit_code="105",
+            car_type=CarType.LIGHT,
+        ))
+        print(fees.items[0].toll_fee)
+
+
+asyncio.run(main())
 ```
 
 ### 키를 직접 넘기는 방식
@@ -212,13 +219,23 @@ if weather:
 Streamlit 같은 외부 디버그 UI에서는 `debug_call()` 결과의 `catalog` 필드를 Debug Trace 탭에 그대로 표시할 수 있습니다.
 
 ```python
-run = client.debug_call("restarea.weather", sdate="20210507", std_hour=12)
+import streamlit as st
+from krex import KrexClient
+import asyncio
 
-if run.catalog:
-    st.write("데이터셋", run.catalog["dataset_name"])
-    if run.catalog.get("service_key_url"):
-        st.link_button("서비스키 발급/활용신청", run.catalog["service_key_url"])
-    st.dataframe([run.catalog])
+
+async def main() -> None:
+    async with KrexClient.from_env() as client:
+        run = (await client.debug_call("restarea.weather", sdate="20210507", std_hour=12))
+
+        if run.catalog:
+            st.write("데이터셋", run.catalog["dataset_name"])
+            if run.catalog.get("service_key_url"):
+                st.link_button("서비스키 발급/활용신청", run.catalog["service_key_url"])
+            st.dataframe([run.catalog])
+
+
+asyncio.run(main())
 ```
 
 이 저장소에는 같은 흐름을 바로 확인할 수 있는 예제 UI가 있습니다.
@@ -243,16 +260,25 @@ python -m streamlit run examples/streamlit_debug_ui.py --server.port 8504
 모든 목록형 API는 `Page[T]`를 반환합니다.
 
 ```python
-page = client.traffic.flow(route_no="0010")
+from krex import KrexClient
+import asyncio
 
-page.items        # tuple[TrafficFlow, ...]
-page.first        # TrafficFlow | None
-len(page)         # 현재 페이지 item 수
-bool(page)        # item이 있으면 True
-page.page_no      # int | None
-page.num_of_rows  # int | None
-page.total_count  # int | None
-page.raw          # 원본 응답 dict | None
+
+async def main() -> None:
+    async with KrexClient.from_env() as client:
+        page = (await client.traffic.flow(route_no="0010"))
+
+        page.items        # tuple[TrafficFlow, ...]
+        page.first        # TrafficFlow | None
+        len(page)         # 현재 페이지 item 수
+        bool(page)        # item이 있으면 True
+        page.page_no      # int | None
+        page.num_of_rows  # int | None
+        page.total_count  # int | None
+        page.raw          # 원본 응답 dict | None
+
+
+asyncio.run(main())
 ```
 
 `Page`는 바로 순회할 수 있고, `Page.items`는 tuple입니다. 호출 이후 결과가 의도치 않게 바뀌는 일을 줄이기 위한 선택입니다.
@@ -280,11 +306,21 @@ if flow:
 한국도로공사 `data.ex.co.kr`의 휴게소별 날씨 정보는 `restarea.weather()`로 특정 기준일/시각을 조회하고, `restarea.latest_weather()`로 최근 비어 있지 않은 시간대를 찾습니다.
 
 ```python
-page = client.restarea.weather(sdate="20210507", std_hour=12)
-latest = client.restarea.latest_weather(lookback_hours=72)
+import streamlit as st
+from krex import KrexClient
+import asyncio
 
-for row in latest.items[:3]:
-    print(row.unit_name, row.route_name, row.weather, row.temperature)
+
+async def main() -> None:
+    async with KrexClient.from_env() as client:
+        page = (await client.restarea.weather(sdate="20210507", std_hour=12))
+        latest = (await client.restarea.latest_weather(lookback_hours=72))
+
+        for row in latest.items[:3]:
+            print(row.unit_name, row.route_name, row.weather, row.temperature)
+
+
+asyncio.run(main())
 ```
 
 `-99`, `-99.000000` 같은 한국도로공사 결측값은 `RestAreaWeather`의 typed 필드에서 `None`으로 정규화하고, 원문은 `raw`에 보존합니다.
@@ -296,22 +332,30 @@ for row in latest.items[:3]:
 코드값은 `StrEnum` 기반 enum으로 제공합니다. 문자열처럼 API 파라미터에 쓸 수 있으면서, 라벨과 선택지를 함께 제공합니다.
 
 ```python
+from krex import KrexClient
+import asyncio
 from krex import CarType, TCSType
 
-CarType.LIGHT.value      # "1"
-CarType.LIGHT.label      # "1종"
-CarType.from_label("1종")
-CarType.choices()        # (("1", "1종"), ...)
-CarType.values()         # ("1", "2", ...)
 
-client.traffic.by_ic(
-    ex_div_code="00",
-    unit_code="101",
-    in_out="0",
-    time_unit="1",
-    tcs_type=TCSType.HIPASS,
-    car_type=CarType.LIGHT,
-)
+async def main() -> None:
+    async with KrexClient.from_env() as client:
+        CarType.LIGHT.value      # "1"
+        CarType.LIGHT.label      # "1종"
+        CarType.from_label("1종")
+        CarType.choices()        # (("1", "1종"), ...)
+        CarType.values()         # ("1", "2", ...)
+
+        (await client.traffic.by_ic(
+            ex_div_code="00",
+            unit_code="101",
+            in_out="0",
+            time_unit="1",
+            tcs_type=TCSType.HIPASS,
+            car_type=CarType.LIGHT,
+        ))
+
+
+asyncio.run(main())
 ```
 
 외부 프로그램의 폼, CLI, OpenAPI schema, Pydantic validator에서는 `choices()`나 `values()`를 그대로 사용할 수 있습니다.
@@ -323,17 +367,35 @@ client.traffic.by_ic(
 휴게소처럼 WGS84 위경도가 명확한 데이터는 모델의 `lat`/`lon` 필드에 바로 제공합니다. GeoJSON, WKT, 외부 GIS 전송 경계에서는 각 표준에 맞춰 `(lon, lat)` 순서로 직접 전달하세요.
 
 ```python
-rest_area = client.restarea.list_all().first
-if rest_area and rest_area.lon is not None and rest_area.lat is not None:
-    geojson_position = (rest_area.lon, rest_area.lat)
+from krex import KrexClient
+import asyncio
+
+
+async def main() -> None:
+    async with KrexClient.from_env() as client:
+        rest_area = (await client.restarea.list_all()).first
+        if rest_area and rest_area.lon is not None and rest_area.lat is not None:
+            geojson_position = (rest_area.lon, rest_area.lat)
+
+
+asyncio.run(main())
 ```
 
 영업소처럼 원본 좌표계가 불명확한 데이터는 `raw_coordinate`도 함께 제공합니다.
 
 ```python
-tollgate = client.tollfee.tollgate_list().first
-if tollgate and tollgate.raw_coordinate:
-    print(tollgate.raw_coordinate.x, tollgate.raw_coordinate.y, tollgate.raw_coordinate.system)
+from krex import KrexClient
+import asyncio
+
+
+async def main() -> None:
+    async with KrexClient.from_env() as client:
+        tollgate = (await client.tollfee.tollgate_list()).first
+        if tollgate and tollgate.raw_coordinate:
+            print(tollgate.raw_coordinate.x, tollgate.raw_coordinate.y, tollgate.raw_coordinate.system)
+
+
+asyncio.run(main())
 ```
 
 ---
@@ -343,9 +405,18 @@ if tollgate and tollgate.raw_coordinate:
 휴게소 주소가 있는 모델은 provider가 준 원문 주소 문자열을 `address`에 제공합니다.
 
 ```python
-facility = client.restarea.route_facilities().first
-if facility and facility.address:
-    print(facility.address)
+from krex import KrexClient
+import asyncio
+
+
+async def main() -> None:
+    async with KrexClient.from_env() as client:
+        facility = (await client.restarea.route_facilities()).first
+        if facility and facility.address:
+            print(facility.address)
+
+
+asyncio.run(main())
 ```
 
 KEX 응답의 주소 문자열만으로는 10자리 법정동코드를 안전하게 확정하지 않습니다. 주소
@@ -362,7 +433,7 @@ KEX 응답의 주소 문자열만으로는 10자리 법정동코드를 안전하
 from krex import KrexClient
 
 class Session:
-    def get(self, url, *, params, timeout):
+    async def get(self, url, *, params, timeout):
         ...
 
 client = KrexClient(ex_api_key="test-key", session=Session())
@@ -375,25 +446,31 @@ client = KrexClient(ex_api_key="test-key", session=Session())
 디버그 UI나 임시 확인 도구는 라이브러리를 직접 호출하되, Streamlit 같은 UI 의존성을 이 패키지에 넣지 않습니다. 대신 `debug_call()`로 실행 정보를 모으고 `save_fixture()`로 replay 가능한 JSON fixture를 저장합니다.
 
 ```python
+import asyncio
 from krex import KrexClient, save_fixture
 
-client = KrexClient.from_env()
-run = client.debug_call("restarea.weather", sdate="20210507", std_hour=12)
 
-print(run.catalog["dataset_name"])       # 한국도로공사_휴게소별 날씨
-print(run.catalog["service_key_url"])    # 서비스키 발급/활용신청 링크
+async def main() -> None:
+    async with KrexClient.from_env() as client:
+        run = (await client.debug_call("restarea.weather", sdate="20210507", std_hour=12))
 
-save_fixture(
-    base_dir="tests/fixtures",
-    function_name=run.function,
-    case_name="weather_normal",
-    description="휴게소 날씨 정상 응답",
-    input_data=run.input,
-    request_data=run.request,
-    response_data=run.response,
-    parsed_result=run.parsed,
-    processed_result=run.processed,
-)
+        print(run.catalog["dataset_name"])       # 한국도로공사_휴게소별 날씨
+        print(run.catalog["service_key_url"])    # 서비스키 발급/활용신청 링크
+
+        save_fixture(
+            base_dir="tests/fixtures",
+            function_name=run.function,
+            case_name="weather_normal",
+            description="휴게소 날씨 정상 응답",
+            input_data=run.input,
+            request_data=run.request,
+            response_data=run.response,
+            parsed_result=run.parsed,
+            processed_result=run.processed,
+        )
+
+
+asyncio.run(main())
 ```
 
 Fixture 저장 전 `key`, `serviceKey`, `Authorization`, `api_key`, token 계열 필드는 `<REDACTED>`로 마스킹됩니다. 저장된 fixture는 `tests/test_generated_fixtures.py`가 외부 API 호출 없이 raw response를 다시 파싱해 회귀 테스트로 실행합니다.
@@ -420,18 +497,24 @@ python -m pytest -m live -vv
 ## 에러 처리
 
 ```python
+import asyncio
 from krex import KrexAuthError, KrexClient, KrexQuotaExceededError, KrexServerError
 
-client = KrexClient.from_env()
 
-try:
-    client.traffic.flow(route_no="0010")
-except KrexAuthError:
-    print("인증키를 확인하세요.")
-except KrexQuotaExceededError:
-    print("일일 호출 한도를 초과했습니다.")
-except KrexServerError:
-    print("포털 장애 가능성이 있어 재시도 대상입니다.")
+async def main() -> None:
+    async with KrexClient.from_env() as client:
+
+        try:
+            (await client.traffic.flow(route_no="0010"))
+        except KrexAuthError:
+            print("인증키를 확인하세요.")
+        except KrexQuotaExceededError:
+            print("API 요청 한도를 초과했습니다.")
+        except KrexServerError:
+            print("포털 장애 가능성이 있어 재시도 대상입니다.")
+
+
+asyncio.run(main())
 ```
 
 예외 계층과 원본 코드 매핑은 [error-codes.md](error-codes.md)에 정리되어 있습니다.
@@ -517,3 +600,36 @@ tests/
 GPL-3.0-or-later. 자세한 조건은 [LICENSE](LICENSE)를 참고하세요. 이 라이선스는 이 저장소의 코드에만 적용됩니다.
 
 원천 데이터의 저작권과 이용조건은 한국도로공사, 공공데이터포털, 각 데이터 제공기관 정책을 따릅니다. 이 프로젝트는 비공식 라이브러리이며 한국도로공사와 무관합니다. 실제 이용 전에는 각 제공기관의 최신 이용약관을 직접 확인하세요 — 본 안내는 법적 자문이 아니며 법적 효력을 보장하지 않습니다.
+
+
+## 비동기 호출과 공통 TPS
+
+`KrexClient`와 모든 네트워크 서비스 메서드는 native async다. 조회와 디버그에는
+`await`, 세션 관리에는 `async with` 또는 `await client.aclose()`를 사용한다.
+동기 HTTP bridge, Async 접두사 클라이언트와 aio/adebug_call 별칭은 제거했다.
+`reference.routes`, `reference.common_codes`, `reference.api_catalog`, 파싱과 코드표,
+fixture 저장 등 로컬 유틸리티는 일반 함수다. 기존 서비스 인자·모델·선행 0 코드는 유지한다.
+
+기존 TPS 변경의 기본값을 보존한다: `max_rps=5.0`, 버킷 `capacity=1`이다.
+초기 버스트 없이 송신 사이에 최소 1/max_rps 간격을 둔다. 모든 서비스는 같은 버킷을
+공유하고 각 재시도·리다이렉트·debug·latest_weather의 시간대 조회에도 토큰을 소비한다.
+
+다른 라이브러리와 같은 구현의 `AsyncTokenBucket`을 `rate_limiter=`에 주입하면
+여러 클라이언트가 요청 예산을 합산한다. 주입한 버킷이 max_rps보다 우선한다.
+공통 버킷 클래스 자체의 기본 capacity는 max(1, max_rps)로 초기 burst를 허용하므로
+Krex의 기본 간격을 유지하는 공유 버킷도 **capacity=1을 명시**한다.
+버킷은 한 이벤트 루프에서 사용한다. 대기 취소는 토큰을 소비하지 않고 다음 대기자를 진행시킨다.
+
+401/403/429는 즉시 실패한다. 5xx와 HTTPX 네트워크 오류는 기존 backoff를 유지하되
+각 시도마다 새 토큰을 얻는다. 인자 검증 실패와 로컬 코드 조회는 토큰을 쓰지 않는다.
+HTTPX 리다이렉트는 계측한다. Digest/custom Auth처럼 내부 추가 송신이 가능한 인증 세션은
+첫 전송 전에 거부한다. 인증 없는 세션과 HTTPX 기본 BasicAuth를 지원한다. 사용자 정의
+transport 내부의 연결 재시도는 라이브러리 밖의 동작이다.
+
+내부 HTTP 세션은 첫 요청에서 생성하고 클라이언트 종료 시 닫는다. session에 주입한
+비동기 세션은 호출자가 닫는다. 동기 get을 제공하는 세션은 거부한다.
+디버그 기록은 ContextVar로 작업마다 격리하며 성공·실패·취소 뒤 복구한다.
+원문으로 오류 분류·모델 파싱을 마친 후 예외와 진단 출력의 키를 마스킹한다.
+
+
+사용 예제: [docs/async-tps.md](docs/async-tps.md).
