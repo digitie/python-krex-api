@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import inspect
+import asyncio
 import json
 import sys
 import typing
@@ -29,6 +30,7 @@ except ModuleNotFoundError as exc:  # pragma: no cover - 선택 실행 도구
     raise SystemExit('Streamlit UI를 쓰려면 `pip install -e ".[debug-ui]"`를 실행하세요.') from exc
 
 from krex import (
+    DebugRun,
     ApiCatalogItem,
     KrexClient,
     KrexCode,
@@ -221,8 +223,14 @@ def _raw_response_tab(
         return
 
     try:
-        client = _client_for_run(selected, api_key, environment=environment, timeout=timeout)
-        run = client.debug_call(selected.function, **preview)
+
+        async def execute() -> DebugRun:
+            async with _client_for_run(
+                selected, api_key, environment=environment, timeout=timeout
+            ) as client:
+                return await client.debug_call(selected.function, **preview)
+
+        run = asyncio.run(execute())
     except Exception as exc:  # pragma: no cover - UI 표시
         st.error(str(exc))
         return
@@ -551,9 +559,7 @@ def _fixture_tab(selected: ApiCatalogItem, fixture_base_dir: str) -> None:
         }
 
         st.subheader("Fixture preview")
-        st.json(
-            run.to_fixture_dict(name=case_name, description=description, assertion=assertion)
-        )
+        st.json(run.to_fixture_dict(name=case_name, description=description, assertion=assertion))
 
         if st.button("Save as fixture", key=f"{key_prefix}:save"):
             try:
@@ -607,7 +613,9 @@ def _service_key_links(selected: ApiCatalogItem) -> None:
     if selected.provider == "data.ex.co.kr":
         st.sidebar.link_button("data.ex.co.kr 포털", "https://data.ex.co.kr")
     elif selected.provider == "data.go.kr":
-        st.sidebar.link_button("data.go.kr 카탈로그", selected.service_key_url or "https://www.data.go.kr")
+        st.sidebar.link_button(
+            "data.go.kr 카탈로그", selected.service_key_url or "https://www.data.go.kr"
+        )
 
 
 def _env_key_sources(provider: str) -> list[dict[str, str]]:

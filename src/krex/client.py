@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
+import inspect
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -16,7 +16,8 @@ from ._convert import (
     to_int_or_none,
 )
 from ._env import get_local_env_value
-from ._http import KrexHttp, NormalizedPayload, normalize_api_key
+from ._http import DEFAULT_MAX_RPS, KrexHttp, NormalizedPayload, normalize_api_key
+from ._ratelimit import AsyncTokenBucket
 from .catalog import get_api_catalog, get_api_catalog_item
 from .codes import (
     ROUTE_NAMES,
@@ -32,8 +33,8 @@ from .codes import (
     TimeUnit,
     coerce_code,
 )
-from .debug import DebugRun, exception_to_debug_error, jsonable
-from .exceptions import KrexInvalidParameterError, KrexNotFoundError, KrexParseError
+from .debug import DebugRun, exception_to_debug_error, jsonable, safe_debug_value
+from .exceptions import KrexError, KrexInvalidParameterError, KrexNotFoundError, KrexParseError
 from .models import (
     ApiCatalogItem,
     FoodPrice,
@@ -75,6 +76,8 @@ class KrexClient:
         max_retries: int = 2,
         retry_backoff: float = 0.5,
         session: Any | None = None,
+        max_rps: float = DEFAULT_MAX_RPS,
+        rate_limiter: AsyncTokenBucket | None = None,
     ) -> None:
         self.ex_api_key = normalize_api_key(ex_api_key) or normalize_api_key(
             get_local_env_value("KEX_EX_API_KEY")
@@ -83,6 +86,9 @@ class KrexClient:
             get_local_env_value("DATA_GO_KR_SERVICE_KEY")
         )
         self.strict_no_data = strict_no_data
+        self.rate_limiter = (
+            rate_limiter if rate_limiter is not None else AsyncTokenBucket(max_rps, capacity=1)
+        )
         self._http = KrexHttp(
             self.ex_api_key,
             self.go_api_key,
@@ -90,6 +96,8 @@ class KrexClient:
             max_retries=max_retries,
             retry_backoff=retry_backoff,
             session=session,
+            rate_limiter=self.rate_limiter,
+            max_rps=max_rps,
         )
         self.traffic = TrafficService(self)
         self.tollfee = TollfeeService(self)
@@ -103,16 +111,7 @@ class KrexClient:
     def from_env(cls, **kwargs: Any) -> KrexClient:
         return cls(**kwargs)
 
-    @classmethod
-    def aio(cls, **kwargs: Any) -> AsyncKrexClient:
-        return AsyncKrexClient(**kwargs)
-
-    async def adebug_call(self, function: str, **params: Any) -> DebugRun:
-        """Async wrapper for debug execution in asyncio applications."""
-
-        return await asyncio.to_thread(self.debug_call, function, **params)
-
-    def debug_call(self, function: str, **params: Any) -> DebugRun:
+    async def debug_call(self, function: str, **params: Any) -> DebugRun:
         """외부 Debug UI가 사용할 수 있는 단일 함수 실행 정보를 반환합니다."""
 
         trace = [f"resolve {function}"]
@@ -125,28 +124,31 @@ class KrexClient:
         parsed: Any = None
         processed: Any = None
         error: dict[str, Any] | None = None
-        self._http.last_request = None
-        self._http.last_response = None
-        try:
-            method = self._resolve_debug_function(function)
-            trace.append("call public client method")
-            parsed = method(**params)
-            processed = parsed
-            trace.append("call completed")
-        except Exception as exc:  # noqa: BLE001 - 디버그 UI는 예외를 화면에 보여줘야 합니다.
-            error = exception_to_debug_error(exc)
-            trace.append(f"error: {type(exc).__name__}")
-        return DebugRun(
-            function=function,
-            input=dict(params),
-            request=self._http.last_request or {},
-            response=self._http.last_response or {},
-            parsed=parsed,
-            processed=processed,
-            trace=trace,
-            catalog=catalog,
-            error=error,
-        )
+        secrets = (self.ex_api_key, self.go_api_key)
+        with self._http.capture_calls():
+            self._http.last_request = None
+            self._http.last_response = None
+            try:
+                method = self._resolve_debug_function(function)
+                trace.append("call public client method")
+                value = method(**params)
+                parsed = await value if inspect.isawaitable(value) else value
+                processed = parsed
+                trace.append("call completed")
+            except Exception as exc:  # noqa: BLE001 - 디버그 UI는 예외를 화면에 보여줘야 합니다.
+                error = exception_to_debug_error(exc)
+                trace.append(f"error: {type(exc).__name__}")
+            return DebugRun(
+                function=function,
+                input=safe_debug_value(dict(params), secrets),
+                request=safe_debug_value(self._http.last_request or {}, secrets),
+                response=safe_debug_value(self._http.last_response or {}, secrets),
+                parsed=safe_debug_value(parsed, secrets),
+                processed=safe_debug_value(processed, secrets),
+                trace=trace,
+                catalog=catalog,
+                error=safe_debug_value(error, secrets),
+            )
 
     def _resolve_debug_function(self, function: str) -> Callable[..., Any]:
         parts = function.split(".")
@@ -164,51 +166,31 @@ class KrexClient:
         await self._http.aclose()
         self.closed = True
 
-    def close(self) -> None:
-        self._http.close()
-        self.closed = True
-
     async def __aenter__(self) -> KrexClient:
         return self
 
     async def __aexit__(self, *_exc_info: Any) -> None:
         await self.aclose()
 
-    def __enter__(self) -> KrexClient:
-        return self
-
-    def __exit__(self, *_exc_info: Any) -> None:
-        self.close()
-
-    def _page_ex(
+    async def _page_ex(
         self,
         path: str,
         params: dict[str, Any],
         parser: Callable[[dict[str, Any]], T],
     ) -> Page[T]:
         try:
-            payload = self._http.get_ex(path, _clean(params))
-        except KrexNotFoundError:
-            if self.strict_no_data:
-                raise
-            return Page(items=())
-        return _parse_page(payload, parser)
+            try:
+                payload = await self._http.get_ex(path, _clean(params))
+            except KrexNotFoundError:
+                if self.strict_no_data:
+                    raise
+                return Page(items=())
+            return _parse_page(payload, parser)
+        except KrexError as exc:
+            self._http.protect_error(exc)
+            raise exc from None
 
-    async def _apage_ex(
-        self,
-        path: str,
-        params: dict[str, Any],
-        parser: Callable[[dict[str, Any]], T],
-    ) -> Page[T]:
-        try:
-            payload = await self._http.aget_ex(path, _clean(params))
-        except KrexNotFoundError:
-            if self.strict_no_data:
-                raise
-            return Page(items=())
-        return _parse_page(payload, parser)
-
-    def _page_go(
+    async def _page_go(
         self,
         url: str,
         params: dict[str, Any],
@@ -217,106 +199,23 @@ class KrexClient:
         standard: bool = False,
     ) -> Page[T]:
         try:
-            payload = self._http.get_go(url, _clean(params), standard=standard)
-        except KrexNotFoundError:
-            if self.strict_no_data:
-                raise
-            return Page(items=())
-        return _parse_page(payload, parser)
-
-    async def _apage_go(
-        self,
-        url: str,
-        params: dict[str, Any],
-        parser: Callable[[dict[str, Any]], T],
-        *,
-        standard: bool = False,
-    ) -> Page[T]:
-        try:
-            payload = await self._http.aget_go(url, _clean(params), standard=standard)
-        except KrexNotFoundError:
-            if self.strict_no_data:
-                raise
-            return Page(items=())
-        return _parse_page(payload, parser)
-
-
-class AsyncKrexClient:
-    """Asynchronous facade matching the `KrexClient.aio()` construction style."""
-
-    def __init__(
-        self,
-        ex_api_key: str | None = None,
-        go_api_key: str | None = None,
-        *,
-        timeout: float = 10.0,
-        strict_no_data: bool = True,
-        max_retries: int = 2,
-        retry_backoff: float = 0.5,
-        session: Any | None = None,
-    ) -> None:
-        self._sync_client = KrexClient(
-            ex_api_key=ex_api_key,
-            go_api_key=go_api_key,
-            timeout=timeout,
-            strict_no_data=strict_no_data,
-            max_retries=max_retries,
-            retry_backoff=retry_backoff,
-            session=session,
-        )
-        self.traffic = _AsyncServiceProxy(self._sync_client.traffic)
-        self.tollfee = _AsyncServiceProxy(self._sync_client.tollfee)
-        self.restarea = _AsyncServiceProxy(self._sync_client.restarea)
-        self.facility = _AsyncServiceProxy(self._sync_client.facility)
-        self.admin = _AsyncServiceProxy(self._sync_client.admin)
-        self.reference = _AsyncServiceProxy(self._sync_client.reference)
-        self.closed = False
-
-    @property
-    def ex_api_key(self) -> str | None:
-        return self._sync_client.ex_api_key
-
-    @property
-    def go_api_key(self) -> str | None:
-        return self._sync_client.go_api_key
-
-    async def debug_call(self, function: str, **params: Any) -> DebugRun:
-        return await self._sync_client.adebug_call(function, **params)
-
-    async def adebug_call(self, function: str, **params: Any) -> DebugRun:
-        return await self.debug_call(function, **params)
-
-    async def aclose(self) -> None:
-        await self._sync_client.aclose()
-        self.closed = True
-
-    async def __aenter__(self) -> AsyncKrexClient:
-        return self
-
-    async def __aexit__(self, *_exc_info: Any) -> None:
-        await self.aclose()
-
-
-class _AsyncServiceProxy:
-    def __init__(self, service: Any) -> None:
-        self._service = service
-
-    def __getattr__(self, name: str) -> Any:
-        value = getattr(self._service, name)
-        if not callable(value):
-            return value
-
-        async def call(*args: Any, **kwargs: Any) -> Any:
-            return await asyncio.to_thread(value, *args, **kwargs)
-
-        return call
+            try:
+                payload = await self._http.get_go(url, _clean(params), standard=standard)
+            except KrexNotFoundError:
+                if self.strict_no_data:
+                    raise
+                return Page(items=())
+            return _parse_page(payload, parser)
+        except KrexError as exc:
+            self._http.protect_error(exc)
+            raise exc from None
 
 
 @dataclass(frozen=True, slots=True)
 class TrafficService:
     _client: KrexClient
 
-    def by_ic(
+    async def by_ic(
         self,
         *,
         ex_div_code: RoadOperator | str,
@@ -328,23 +227,27 @@ class TrafficService:
         num_of_rows: int = 1000,
         page_no: int = 1,
     ) -> Page[TrafficByIc]:
-        _require(unit_code, "unit_code")
-        return self._client._page_ex(
-            "/openapi/trafficapi/trafficIc",
-            {
-                "exDivCode": coerce_code(RoadOperator, ex_div_code, "ex_div_code"),
-                "unitCode": unit_code,
-                "inOutType": coerce_code(IOType, in_out, "in_out"),
-                "tmType": coerce_code(TimeUnit, time_unit, "time_unit"),
-                "tcsType": coerce_code(TCSType, tcs_type, "tcs_type"),
-                "carType": coerce_code(CarType, car_type, "car_type"),
-                "numOfRows": num_of_rows,
-                "pageNo": page_no,
-            },
-            _traffic_by_ic,
-        )
+        try:
+            _require(unit_code, "unit_code")
+            return await self._client._page_ex(
+                "/openapi/trafficapi/trafficIc",
+                {
+                    "exDivCode": coerce_code(RoadOperator, ex_div_code, "ex_div_code"),
+                    "unitCode": unit_code,
+                    "inOutType": coerce_code(IOType, in_out, "in_out"),
+                    "tmType": coerce_code(TimeUnit, time_unit, "time_unit"),
+                    "tcsType": coerce_code(TCSType, tcs_type, "tcs_type"),
+                    "carType": coerce_code(CarType, car_type, "car_type"),
+                    "numOfRows": num_of_rows,
+                    "pageNo": page_no,
+                },
+                _traffic_by_ic,
+            )
+        except KrexError as exc:
+            self._client._http.protect_error(exc)
+            raise exc from None
 
-    def by_route(
+    async def by_route(
         self,
         *,
         route_no: str,
@@ -355,22 +258,26 @@ class TrafficService:
         num_of_rows: int = 1000,
         page_no: int = 1,
     ) -> Page[dict[str, Any]]:
-        _require(route_no, "route_no")
-        return self._client._page_ex(
-            "/openapi/trafficapi/trafficRoute",
-            {
-                "routeNo": route_no,
-                "tmType": coerce_code(TimeUnit, time_unit, "time_unit"),
-                "dirType": _optional_code(Direction, direction, "direction"),
-                "carType": _optional_code(CarType, car_type, "car_type"),
-                "stdDate": std_date,
-                "numOfRows": num_of_rows,
-                "pageNo": page_no,
-            },
-            dict,
-        )
+        try:
+            _require(route_no, "route_no")
+            return await self._client._page_ex(
+                "/openapi/trafficapi/trafficRoute",
+                {
+                    "routeNo": route_no,
+                    "tmType": coerce_code(TimeUnit, time_unit, "time_unit"),
+                    "dirType": _optional_code(Direction, direction, "direction"),
+                    "carType": _optional_code(CarType, car_type, "car_type"),
+                    "stdDate": std_date,
+                    "numOfRows": num_of_rows,
+                    "pageNo": page_no,
+                },
+                dict,
+            )
+        except KrexError as exc:
+            self._client._http.protect_error(exc)
+            raise exc from None
 
-    def flow(
+    async def flow(
         self,
         *,
         route_no: str | None = None,
@@ -379,19 +286,23 @@ class TrafficService:
         num_of_rows: int = 1000,
         page_no: int = 1,
     ) -> Page[TrafficFlow]:
-        return self._client._page_ex(
-            "/openapi/trafficapi/realFlow",
-            {
-                "routeNo": route_no,
-                "conzoneId": conzone_id,
-                "dirType": _optional_code(Direction, direction, "direction"),
-                "numOfRows": num_of_rows,
-                "pageNo": page_no,
-            },
-            _traffic_flow,
-        )
+        try:
+            return await self._client._page_ex(
+                "/openapi/trafficapi/realFlow",
+                {
+                    "routeNo": route_no,
+                    "conzoneId": conzone_id,
+                    "dirType": _optional_code(Direction, direction, "direction"),
+                    "numOfRows": num_of_rows,
+                    "pageNo": page_no,
+                },
+                _traffic_flow,
+            )
+        except KrexError as exc:
+            self._client._http.protect_error(exc)
+            raise exc from None
 
-    def incident(
+    async def incident(
         self,
         *,
         acc_type_code: str | None = None,
@@ -404,34 +315,46 @@ class TrafficService:
         반환하므로 `/openapi/burstInfo/realTimeSms`를 호출한다.
         """
 
-        return _validate_realtime_sms_page(
-            self._client._page_ex(
-                "/openapi/burstInfo/realTimeSms",
-                {
-                    "accTypeCode": acc_type_code,
-                    "numOfRows": num_of_rows,
-                    "pageNo": page_no,
-                },
-                _incident,
+        try:
+            return _validate_realtime_sms_page(
+                await self._client._page_ex(
+                    "/openapi/burstInfo/realTimeSms",
+                    {
+                        "accTypeCode": acc_type_code,
+                        "numOfRows": num_of_rows,
+                        "pageNo": page_no,
+                    },
+                    _incident,
+                )
             )
-        )
+        except KrexError as exc:
+            self._client._http.protect_error(exc)
+            raise exc from None
 
-    def vds_raw(self, **params: Any) -> Page[dict[str, Any]]:
-        return self._client._page_ex("/openapi/trafficapi/vdsRaw", params, dict)
+    async def vds_raw(self, **params: Any) -> Page[dict[str, Any]]:
+        try:
+            return await self._client._page_ex("/openapi/trafficapi/vdsRaw", params, dict)
+        except KrexError as exc:
+            self._client._http.protect_error(exc)
+            raise exc from None
 
-    def avc_raw(self, *, vds_id: str, std_date: str, **params: Any) -> Page[dict[str, Any]]:
-        _require(vds_id, "vds_id")
-        _require(std_date, "std_date")
-        query = {"vdsId": vds_id, "stdDate": std_date}
-        query.update(params)
-        return self._client._page_ex("/openapi/trafficapi/avcRaw", query, dict)
+    async def avc_raw(self, *, vds_id: str, std_date: str, **params: Any) -> Page[dict[str, Any]]:
+        try:
+            _require(vds_id, "vds_id")
+            _require(std_date, "std_date")
+            query = {"vdsId": vds_id, "stdDate": std_date}
+            query.update(params)
+            return await self._client._page_ex("/openapi/trafficapi/avcRaw", query, dict)
+        except KrexError as exc:
+            self._client._http.protect_error(exc)
+            raise exc from None
 
 
 @dataclass(frozen=True, slots=True)
 class TollfeeService:
     _client: KrexClient
 
-    def between_tollgates(
+    async def between_tollgates(
         self,
         *,
         start_unit_code: str,
@@ -441,34 +364,42 @@ class TollfeeService:
         num_of_rows: int = 100,
         page_no: int = 1,
     ) -> Page[TollFee]:
-        _require(start_unit_code, "start_unit_code")
-        _require(end_unit_code, "end_unit_code")
-        return self._client._page_ex(
-            "/openapi/tollfee/tollFeeBetweenTcs",
-            {
-                "startUnitCode": start_unit_code,
-                "endUnitCode": end_unit_code,
-                "carType": coerce_code(CarType, car_type, "car_type"),
-                "discountType": _optional_code(DiscountType, discount_type, "discount_type"),
-                "numOfRows": num_of_rows,
-                "pageNo": page_no,
-            },
-            _toll_fee,
-        )
+        try:
+            _require(start_unit_code, "start_unit_code")
+            _require(end_unit_code, "end_unit_code")
+            return await self._client._page_ex(
+                "/openapi/tollfee/tollFeeBetweenTcs",
+                {
+                    "startUnitCode": start_unit_code,
+                    "endUnitCode": end_unit_code,
+                    "carType": coerce_code(CarType, car_type, "car_type"),
+                    "discountType": _optional_code(DiscountType, discount_type, "discount_type"),
+                    "numOfRows": num_of_rows,
+                    "pageNo": page_no,
+                },
+                _toll_fee,
+            )
+        except KrexError as exc:
+            self._client._http.protect_error(exc)
+            raise exc from None
 
-    def tollgate_list(self, *, num_of_rows: int = 1000, page_no: int = 1) -> Page[Tollgate]:
-        return self._client._page_ex(
-            "/openapi/business/openapibusinessunit",
-            {"numOfRows": num_of_rows, "pageNo": page_no},
-            _tollgate,
-        )
+    async def tollgate_list(self, *, num_of_rows: int = 1000, page_no: int = 1) -> Page[Tollgate]:
+        try:
+            return await self._client._page_ex(
+                "/openapi/business/openapibusinessunit",
+                {"numOfRows": num_of_rows, "pageNo": page_no},
+                _tollgate,
+            )
+        except KrexError as exc:
+            self._client._http.protect_error(exc)
+            raise exc from None
 
 
 @dataclass(frozen=True, slots=True)
 class RestareaService:
     _client: KrexClient
 
-    def route_facilities(
+    async def route_facilities(
         self,
         *,
         route_name: str | None = None,
@@ -479,21 +410,25 @@ class RestareaService:
         num_of_rows: int = 1000,
         page_no: int = 1,
     ) -> Page[RestAreaRouteFacility]:
-        return self._client._page_ex(
-            "/openapi/business/serviceAreaRoute",
-            {
-                "routeName": route_name,
-                "direction": direction,
-                "serviceAreaName": service_area_name,
-                "routeCode": route_code,
-                "serviceAreaCode": service_area_code,
-                "numOfRows": num_of_rows,
-                "pageNo": page_no,
-            },
-            _rest_area_route_facility,
-        )
+        try:
+            return await self._client._page_ex(
+                "/openapi/business/serviceAreaRoute",
+                {
+                    "routeName": route_name,
+                    "direction": direction,
+                    "serviceAreaName": service_area_name,
+                    "routeCode": route_code,
+                    "serviceAreaCode": service_area_code,
+                    "numOfRows": num_of_rows,
+                    "pageNo": page_no,
+                },
+                _rest_area_route_facility,
+            )
+        except KrexError as exc:
+            self._client._http.protect_error(exc)
+            raise exc from None
 
-    def list_all(
+    async def list_all(
         self,
         *,
         rest_area_name: str | None = None,
@@ -501,31 +436,39 @@ class RestareaService:
         num_of_rows: int = 1000,
         page_no: int = 1,
     ) -> Page[RestArea]:
-        return self._client._page_go(
-            "https://api.data.go.kr/openapi/tn_pubr_public_rest_area_api",
-            {
-                "restAreaNm": rest_area_name,
-                "routeNm": route_name,
-                "numOfRows": num_of_rows,
-                "pageNo": page_no,
-            },
-            _rest_area,
-            standard=True,
-        )
+        try:
+            return await self._client._page_go(
+                "https://api.data.go.kr/openapi/tn_pubr_public_rest_area_api",
+                {
+                    "restAreaNm": rest_area_name,
+                    "routeNm": route_name,
+                    "numOfRows": num_of_rows,
+                    "pageNo": page_no,
+                },
+                _rest_area,
+                standard=True,
+            )
+        except KrexError as exc:
+            self._client._http.protect_error(exc)
+            raise exc from None
 
-    def weather(
+    async def weather(
         self,
         *,
         sdate: str | date | datetime,
         std_hour: str | int,
     ) -> Page[RestAreaWeather]:
-        return self._client._page_ex(
-            "/openapi/restinfo/restWeatherList",
-            {"sdate": _format_sdate(sdate), "stdHour": _format_hour(std_hour)},
-            _rest_area_weather,
-        )
+        try:
+            return await self._client._page_ex(
+                "/openapi/restinfo/restWeatherList",
+                {"sdate": _format_sdate(sdate), "stdHour": _format_hour(std_hour)},
+                _rest_area_weather,
+            )
+        except KrexError as exc:
+            self._client._http.protect_error(exc)
+            raise exc from None
 
-    def latest_weather(
+    async def latest_weather(
         self,
         *,
         when: datetime | None = None,
@@ -538,30 +481,38 @@ class RestareaService:
         발생하므로, tzinfo가 있는 datetime을 넘기는 것을 권장합니다.
         """
 
-        if lookback_hours < 0:
-            raise ValueError("lookback_hours must be >= 0")
-        if lookback_hours > _MAX_LATEST_WEATHER_LOOKBACK_HOURS:
-            raise ValueError(
-                f"lookback_hours must be <= {_MAX_LATEST_WEATHER_LOOKBACK_HOURS}"
+        try:
+            if lookback_hours < 0:
+                raise ValueError("lookback_hours must be >= 0")
+            if lookback_hours > _MAX_LATEST_WEATHER_LOOKBACK_HOURS:
+                raise ValueError(f"lookback_hours must be <= {_MAX_LATEST_WEATHER_LOOKBACK_HOURS}")
+            base = _as_kst(when) if when is not None else datetime.now(KST)
+            base = base.replace(minute=0, second=0, microsecond=0)
+            last_raw: dict[str, Any] | None = None
+            for offset in range(lookback_hours + 1):
+                target = base - timedelta(hours=offset)
+                try:
+                    page = await self.weather(sdate=target, std_hour=target.hour)
+                except KrexNotFoundError:
+                    continue
+                if page.items:
+                    return page
+                last_raw = page.raw
+            return Page(items=(), raw=last_raw)
+        except KrexError as exc:
+            self._client._http.protect_error(exc)
+            raise exc from None
+
+    async def food_price(self, **params: Any) -> Page[FoodPrice]:
+        try:
+            return await self._client._page_ex(
+                "/openapi/restinfo/restMenuList", params, _food_price
             )
-        base = _as_kst(when) if when is not None else datetime.now(KST)
-        base = base.replace(minute=0, second=0, microsecond=0)
-        last_raw: dict[str, Any] | None = None
-        for offset in range(lookback_hours + 1):
-            target = base - timedelta(hours=offset)
-            try:
-                page = self.weather(sdate=target, std_hour=target.hour)
-            except KrexNotFoundError:
-                continue
-            if page.items:
-                return page
-            last_raw = page.raw
-        return Page(items=(), raw=last_raw)
+        except KrexError as exc:
+            self._client._http.protect_error(exc)
+            raise exc from None
 
-    def food_price(self, **params: Any) -> Page[FoodPrice]:
-        return self._client._page_ex("/openapi/restinfo/restMenuList", params, _food_price)
-
-    def fuel_prices(
+    async def fuel_prices(
         self,
         *,
         route_name: str | None = None,
@@ -573,22 +524,26 @@ class RestareaService:
         num_of_rows: int = 1000,
         page_no: int = 1,
     ) -> Page[RestAreaFuelPrice]:
-        return self._client._page_ex(
-            "/openapi/business/curStateStation",
-            {
-                "routeName": route_name,
-                "direction": direction,
-                "oilCompany": oil_company,
-                "serviceAreaName": service_area_name,
-                "routeCode": route_code,
-                "serviceAreaCode": service_area_code,
-                "numOfRows": num_of_rows,
-                "pageNo": page_no,
-            },
-            _rest_area_fuel_price,
-        )
+        try:
+            return await self._client._page_ex(
+                "/openapi/business/curStateStation",
+                {
+                    "routeName": route_name,
+                    "direction": direction,
+                    "oilCompany": oil_company,
+                    "serviceAreaName": service_area_name,
+                    "routeCode": route_code,
+                    "serviceAreaCode": service_area_code,
+                    "numOfRows": num_of_rows,
+                    "pageNo": page_no,
+                },
+                _rest_area_fuel_price,
+            )
+        except KrexError as exc:
+            self._client._http.protect_error(exc)
+            raise exc from None
 
-    def convenience_facilities(
+    async def convenience_facilities(
         self,
         *,
         direction: str | None = None,
@@ -598,67 +553,107 @@ class RestareaService:
         num_of_rows: int = 1000,
         page_no: int = 1,
     ) -> Page[dict[str, Any]]:
-        return self._client._page_ex(
-            "/openapi/business/conveniServiceArea",
-            {
-                "direction": direction,
-                "serviceAreaName": service_area_name,
-                "routeCode": route_code,
-                "serviceAreaCode": service_area_code,
-                "numOfRows": num_of_rows,
-                "pageNo": page_no,
-            },
-            dict,
-        )
+        try:
+            return await self._client._page_ex(
+                "/openapi/business/conveniServiceArea",
+                {
+                    "direction": direction,
+                    "serviceAreaName": service_area_name,
+                    "routeCode": route_code,
+                    "serviceAreaCode": service_area_code,
+                    "numOfRows": num_of_rows,
+                    "pageNo": page_no,
+                },
+                dict,
+            )
+        except KrexError as exc:
+            self._client._http.protect_error(exc)
+            raise exc from None
 
-    def parking(self, **params: Any) -> Page[dict[str, Any]]:
-        return self._client._page_ex("/openapi/restinfo/restParking", params, dict)
+    async def parking(self, **params: Any) -> Page[dict[str, Any]]:
+        try:
+            return await self._client._page_ex("/openapi/restinfo/restParking", params, dict)
+        except KrexError as exc:
+            self._client._http.protect_error(exc)
+            raise exc from None
 
-    def wifi(self, **params: Any) -> Page[dict[str, Any]]:
-        return self._client._page_ex("/openapi/restinfo/restWifi", params, dict)
+    async def wifi(self, **params: Any) -> Page[dict[str, Any]]:
+        try:
+            return await self._client._page_ex("/openapi/restinfo/restWifi", params, dict)
+        except KrexError as exc:
+            self._client._http.protect_error(exc)
+            raise exc from None
 
-    def restroom(self, **params: Any) -> Page[dict[str, Any]]:
-        return self._client._page_ex("/openapi/restinfo/restRestroom", params, dict)
+    async def restroom(self, **params: Any) -> Page[dict[str, Any]]:
+        try:
+            return await self._client._page_ex("/openapi/restinfo/restRestroom", params, dict)
+        except KrexError as exc:
+            self._client._http.protect_error(exc)
+            raise exc from None
 
-    def disabled_facility(self, **params: Any) -> Page[dict[str, Any]]:
-        return self._client._page_ex("/openapi/restinfo/restDisabled", params, dict)
+    async def disabled_facility(self, **params: Any) -> Page[dict[str, Any]]:
+        try:
+            return await self._client._page_ex("/openapi/restinfo/restDisabled", params, dict)
+        except KrexError as exc:
+            self._client._http.protect_error(exc)
+            raise exc from None
 
-    def bus_transit(self, **params: Any) -> Page[dict[str, Any]]:
-        return self._client._page_ex("/openapi/restinfo/restBus", params, dict)
+    async def bus_transit(self, **params: Any) -> Page[dict[str, Any]]:
+        try:
+            return await self._client._page_ex("/openapi/restinfo/restBus", params, dict)
+        except KrexError as exc:
+            self._client._http.protect_error(exc)
+            raise exc from None
 
 
 @dataclass(frozen=True, slots=True)
 class FacilityService:
     _client: KrexClient
 
-    def tollgate_info(self, **params: Any) -> Page[dict[str, Any]]:
-        return self._client._page_go(
-            "https://apis.data.go.kr/B552061/TollgateInfoService/getTollgateInfo",
-            params,
-            dict,
-        )
+    async def tollgate_info(self, **params: Any) -> Page[dict[str, Any]]:
+        try:
+            return await self._client._page_go(
+                "https://apis.data.go.kr/B552061/TollgateInfoService/getTollgateInfo",
+                params,
+                dict,
+            )
+        except KrexError as exc:
+            self._client._http.protect_error(exc)
+            raise exc from None
 
-    def drowsy_shelter(self, **params: Any) -> Page[dict[str, Any]]:
-        return self._client._page_ex("/openapi/restinfo/drowsyShelter", params, dict)
+    async def drowsy_shelter(self, **params: Any) -> Page[dict[str, Any]]:
+        try:
+            return await self._client._page_ex("/openapi/restinfo/drowsyShelter", params, dict)
+        except KrexError as exc:
+            self._client._http.protect_error(exc)
+            raise exc from None
 
-    def shoulder_lane(self, **params: Any) -> Page[dict[str, Any]]:
-        return self._client._page_go(
-            "https://apis.data.go.kr/B552061/ShoulderLaneService/getShoulderLane",
-            params,
-            dict,
-        )
+    async def shoulder_lane(self, **params: Any) -> Page[dict[str, Any]]:
+        try:
+            return await self._client._page_go(
+                "https://apis.data.go.kr/B552061/ShoulderLaneService/getShoulderLane",
+                params,
+                dict,
+            )
+        except KrexError as exc:
+            self._client._http.protect_error(exc)
+            raise exc from None
 
 
 @dataclass(frozen=True, slots=True)
 class AdminService:
     _client: KrexClient
 
-    def procurement_contracts(self, **params: Any) -> Page[dict[str, Any]]:
-        return self._client._page_go(
-            "https://apis.data.go.kr/B552061/ProcurementContractService/getContracts",
-            params,
-            dict,
-        )
+    async def procurement_contracts(self, **params: Any) -> Page[dict[str, Any]]:
+        try:
+            return await self._client._page_go(
+                "https://apis.data.go.kr/B552061/ProcurementContractService/getContracts",
+                params,
+                dict,
+            )
+        except KrexError as exc:
+            self._client._http.protect_error(exc)
+            raise exc from None
 
 
 @dataclass(frozen=True, slots=True)

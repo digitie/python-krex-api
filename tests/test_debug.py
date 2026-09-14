@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 from typing import Any
 
@@ -24,7 +23,7 @@ class FakeSession:
     def __init__(self, payload: dict[str, Any]) -> None:
         self.payload = payload
 
-    def get(self, url: str, *, params: dict[str, Any], timeout: float) -> FakeResponse:
+    async def get(self, url: str, *, params: dict[str, Any], timeout: float) -> FakeResponse:
         return FakeResponse(self.payload)
 
 
@@ -32,7 +31,7 @@ def ex_payload(items: Any) -> dict[str, Any]:
     return {"code": "SUCCESS", "pageNo": "1", "numOfRows": "1000", "count": "1", "list": items}
 
 
-def test_debug_call_returns_request_response_and_typed_result() -> None:
+async def test_debug_call_returns_request_response_and_typed_result() -> None:
     session = FakeSession(
         ex_payload(
             [
@@ -52,13 +51,13 @@ def test_debug_call_returns_request_response_and_typed_result() -> None:
     )
     client = KrexClient(ex_api_key="secret-key", retry_backoff=0, session=session)
 
-    run = client.debug_call("traffic.flow", route_no="0010")
+    run = await client.debug_call("traffic.flow", route_no="0010")
 
     assert isinstance(run, DebugRun)
     assert run.error is None
     assert run.request["method"] == "GET"
     assert run.request["url"].endswith("/openapi/trafficapi/realFlow")
-    assert run.request["query"]["key"] == "secr..."
+    assert run.request["query"]["key"] == "<REDACTED>"
     assert run.response["status_code"] == 200
     assert jsonable(run.processed)["items"][0]["speed"] == 87.5
     assert run.catalog is not None
@@ -67,27 +66,27 @@ def test_debug_call_returns_request_response_and_typed_result() -> None:
     assert any(line.startswith("service key URL:") for line in run.trace)
 
 
-def test_async_debug_call_returns_result() -> None:
+async def test_async_debug_call_returns_result() -> None:
     client = KrexClient(
         ex_api_key="secret-key",
         retry_backoff=0,
         session=FakeSession(ex_payload([{"conzoneId": "A", "speed": "1"}])),
     )
 
-    run = asyncio.run(client.adebug_call("traffic.flow", route_no="0010"))
+    run = await client.debug_call("traffic.flow", route_no="0010")
 
     assert run.error is None
-    assert run.request["query"]["key"] == "secr..."
+    assert run.request["query"]["key"] == "<REDACTED>"
 
 
-def test_debug_call_keeps_validation_error_in_result() -> None:
+async def test_debug_call_keeps_validation_error_in_result() -> None:
     client = KrexClient(
         ex_api_key="secret-key",
         retry_backoff=0,
         session=FakeSession(ex_payload([])),
     )
 
-    run = client.debug_call("traffic.flow", direction="bad")
+    run = await client.debug_call("traffic.flow", direction="bad")
 
     assert run.error is not None
     assert run.error["type"] == "KrexInvalidParameterError"

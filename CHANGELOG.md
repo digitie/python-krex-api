@@ -1,5 +1,9 @@
 # 변경 기록
 
+## 2026-09-14 — native async와 공통 TPS
+
+KrexClient와 서비스·debug를 native async로 전환하고 동기 bridge/Async 접두사/aio를 제거했다. 공통 AsyncTokenBucket과 max_rps/rate_limiter를 공개한다. 기존 기본 5 TPS·capacity=1과 재시도 과금을 보존하고 리다이렉트·동시 디버그·주입 세션 수명을 함께 처리한다.
+
 이 프로젝트의 주요 변경 사항을 기록한다.
 
 ## 0.1.0 - 2026-04-30

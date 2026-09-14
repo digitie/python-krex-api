@@ -1,5 +1,12 @@
 # decisions.md — 의사결정 기록
 
+## D-004: native async와 공통 TPS (supersedes: D-002)
+
+- 상태: accepted
+- 날짜: 2026-09-14
+
+사용자 요청에 따라 sync bridge와 asyncio.to_thread facade를 제거하고 실제 HTTP·서비스를 native async로 연결했다. 기존 미커밋 TPS 변경의 기본5/버스트금지 계약은 공통 AsyncTokenBucket(max_rps, capacity=1)으로 보존한다. 공유 버킷 주입과 per-task ContextVar 진단은 여러 라이브러리·동시 호출의 예산과 기록을 안정적으로 관리한다.
+
 이 문서는 이 프로젝트의 구조적 결정을 결정 시점 순서로 누적한다.
 결정이 뒤집힐 때는 새 항목을 추가하고, 옛 항목은 지우지 않은 채
 (supersedes: 위 항목)으로 표시한다.
@@ -38,7 +45,7 @@
 
 ## D-002: `KrexClient`를 동기 우선으로 두고 `AsyncKrexClient`는 `asyncio.to_thread` 파사드로 감싼다
 
-- 상태: accepted
+- 상태: superseded by D-004
 - 날짜: 2026-05-19
 
 ### 컨텍스트

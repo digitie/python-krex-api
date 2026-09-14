@@ -262,45 +262,53 @@ API에서는 4자리 숫자 형태(`0010`, `0150` 등)로 사용. 마지막 0은
 
 ### 코드 검색
 
-라이브러리에는 명칭→코드 양방향 검색 헬퍼가 포함됩니다.
+영업소 목록은 `tollfee.tollgate_list()`로 조회해 이름이나 코드를 명시적으로
+필터링한다. 로컬 노선 목록은 네트워크 없이 `reference.routes()`로 얻는다.
+영업소/노선 코드는 문자열이며 선행 0을 보존한다.
 
 ```python
+import asyncio
 from krex import KrexClient
-client = KrexClient()
 
-# 명칭으로 검색
-matches = client.codes.tollgate_lookup("부산")
-# [TollgateInfo(unit_code="551", name="부산", route="경부선"), ...]
 
-# 코드로 조회
-info = client.codes.tollgate_get("101")
-# TollgateInfo(unit_code="101", name="...", ...)
+async def main() -> None:
+    async with KrexClient.from_env() as client:
+        page = await client.tollfee.tollgate_list(num_of_rows=1000)
+        matches = [item for item in page.items if "부산" in item.unit_name]
+        by_code = [item for item in page.items if item.unit_code == "101"]
+        print(matches, by_code)
+        for route in client.reference.routes():
+            print(route.route_no, route.route_name)
 
-# 노선 + 명칭으로 정확 매치
-info = client.codes.tollgate_lookup("동대구", route="경부선", exact=True)
+
+asyncio.run(main())
 ```
-
-내부 코드 캐시는 24시간마다 자동 갱신되며, 강제 새로고침은
-`client.codes.refresh()`로 수행합니다.
-
----
 
 ## 코드값을 안전하게 다루는 패턴
 
-라이브러리는 enum과 raw 문자열 모두 받습니다.
+공개 enum이나 해당 문자열 값을 전달한다. 알 수 없는 요청 코드는
+`KrexInvalidParameterError`로 실패한다. `UnknownCode`나 `raw_value` 별칭은
+제공하지 않는다. 공급자 원문은 반환 모델의 `raw`로 확인한다.
 
 ```python
-# 둘 다 동일하게 동작
-client.traffic.by_ic(car_type=CarType.LIGHT, ...)
-client.traffic.by_ic(car_type="1", ...)
-client.traffic.by_ic(car_type=1, ...)
-```
+import asyncio
+from krex import CarType, IOType, KrexClient, RoadOperator, TCSType, TimeUnit
 
-알 수 없는 코드는 `UnknownCode` enum 멤버로 보존되며 `.raw_value`로 원본을 확인할 수 있습니다.
 
-```python
-result = client.traffic.flow()
-for item in result.items:
-    if isinstance(item.car_type, UnknownCode):
-        log.warning(f"새 차종 코드 발견: {item.car_type.raw_value}")
+async def main() -> None:
+    async with KrexClient.from_env() as client:
+        page = await client.traffic.by_ic(
+            ex_div_code=RoadOperator.KEC,
+            unit_code="101",
+            in_out=IOType.IN,
+            time_unit=TimeUnit.HOUR,
+            tcs_type=TCSType.HIPASS,
+            car_type=CarType.LIGHT,
+            num_of_rows=1,
+        )
+        for item in page.items:
+            print(item.unit_code, item.car_type, item.raw)
+
+
+asyncio.run(main())
 ```

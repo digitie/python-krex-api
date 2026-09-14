@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -8,7 +7,6 @@ from typing import Any
 import pytest
 
 from krex import (
-    AsyncKrexClient,
     CarType,
     CongestionLevel,
     CoordinateSystem,
@@ -48,7 +46,7 @@ class FakeSession:
     def last_url(self) -> str:
         return self.calls[-1]["url"]
 
-    def get(self, url: str, *, params: dict[str, Any], timeout: float) -> FakeResponse:
+    async def get(self, url: str, *, params: dict[str, Any], timeout: float) -> FakeResponse:
         self.calls.append({"url": url, "params": params, "timeout": timeout})
         if isinstance(self.payload, list):
             index = min(len(self.calls) - 1, len(self.payload) - 1)
@@ -95,13 +93,13 @@ def test_explicit_client_keys_are_normalized_before_env_fallback(tmp_path: Path)
     assert client.ex_api_key == "pastedkey"
 
 
-def test_aio_client_matches_sync_service_shape() -> None:
+async def test_aio_client_matches_sync_service_shape() -> None:
     session = FakeSession(ex_payload([{"conzoneId": "0010CZE010", "speed": "87.5"}]))
-    client = KrexClient.aio(ex_api_key="ex-key", retry_backoff=0, session=session)
+    client = KrexClient(ex_api_key="ex-key", retry_backoff=0, session=session)
 
-    page = asyncio.run(client.traffic.flow(route_no="0010"))
+    page = await client.traffic.flow(route_no="0010")
 
-    assert isinstance(client, AsyncKrexClient)
+    assert isinstance(client, KrexClient)
     assert page.items[0].conzone_id == "0010CZE010"
     assert session.last_url.endswith("/openapi/trafficapi/realFlow")
 
@@ -135,7 +133,7 @@ def rest_weather_row(**overrides: Any) -> dict[str, Any]:
     return row
 
 
-def test_traffic_by_ic_builds_query_and_parses_types() -> None:
+async def test_traffic_by_ic_builds_query_and_parses_types() -> None:
     session = FakeSession(
         ex_payload(
             [
@@ -156,7 +154,7 @@ def test_traffic_by_ic_builds_query_and_parses_types() -> None:
     )
     client = KrexClient(ex_api_key="ex-key", retry_backoff=0, session=session)
 
-    page = client.traffic.by_ic(
+    page = await client.traffic.by_ic(
         ex_div_code=RoadOperator.KEC,
         unit_code="101",
         in_out="0",
@@ -179,7 +177,7 @@ def test_traffic_by_ic_builds_query_and_parses_types() -> None:
     assert item.traffic_volume == 1234
 
 
-def test_traffic_flow_accepts_single_dict_response() -> None:
+async def test_traffic_flow_accepts_single_dict_response() -> None:
     session = FakeSession(
         ex_payload(
             {
@@ -197,7 +195,7 @@ def test_traffic_flow_accepts_single_dict_response() -> None:
     )
     client = KrexClient(ex_api_key="ex-key", retry_backoff=0, session=session)
 
-    page = client.traffic.flow(route_no="0010", direction=Direction.UP)
+    page = await client.traffic.flow(route_no="0010", direction=Direction.UP)
 
     assert session.last_params["routeNo"] == "0010"
     assert session.last_params["dirType"] == "0"
@@ -243,11 +241,11 @@ def incident_payload(rows: list[dict[str, Any]], count: int = 190) -> dict[str, 
     }
 
 
-def test_traffic_incident_calls_realtime_sms_and_parses_live_shape() -> None:
+async def test_traffic_incident_calls_realtime_sms_and_parses_live_shape() -> None:
     session = FakeSession(incident_payload([incident_row()]))
     client = KrexClient(ex_api_key="ex-key", retry_backoff=0, session=session)
 
-    page = client.traffic.incident(acc_type_code="15", num_of_rows=1)
+    page = await client.traffic.incident(acc_type_code="15", num_of_rows=1)
 
     assert session.last_url.endswith("/openapi/burstInfo/realTimeSms")
     assert session.last_params["accTypeCode"] == "15"
@@ -275,11 +273,11 @@ def test_traffic_incident_calls_realtime_sms_and_parses_live_shape() -> None:
     assert incident.raw["laneYn1"] == "N"
 
 
-def test_traffic_incident_accepts_explicit_empty_snapshot() -> None:
+async def test_traffic_incident_accepts_explicit_empty_snapshot() -> None:
     session = FakeSession(incident_payload([], count=0))
     client = KrexClient(ex_api_key="ex-key", retry_backoff=0, session=session)
 
-    page = client.traffic.incident()
+    page = await client.traffic.incident()
 
     assert page.items == ()
     assert page.total_count == 0
@@ -295,17 +293,17 @@ def test_traffic_incident_accepts_explicit_empty_snapshot() -> None:
         {"count": -1, "realTimeSMSList": []},
     ],
 )
-def test_traffic_incident_rejects_non_authoritative_empty_payload(
+async def test_traffic_incident_rejects_non_authoritative_empty_payload(
     payload: dict[str, Any],
 ) -> None:
     session = FakeSession(payload)
     client = KrexClient(ex_api_key="ex-key", retry_backoff=0, session=session)
 
     with pytest.raises(KrexParseError, match="realTimeSms"):
-        client.traffic.incident()
+        (await client.traffic.incident())
 
 
-def test_traffic_incident_maps_altitude_key_to_longitude() -> None:
+async def test_traffic_incident_maps_altitude_key_to_longitude() -> None:
     # 포털 명세상 '돌발시작이정경도'가 altitude 키로 내려온다.
     session = FakeSession(
         incident_payload(
@@ -322,7 +320,7 @@ def test_traffic_incident_maps_altitude_key_to_longitude() -> None:
     )
     client = KrexClient(ex_api_key="ex-key", retry_backoff=0, session=session)
 
-    page = client.traffic.incident()
+    page = await client.traffic.incident()
 
     assert "accTypeCode" not in session.last_params  # 미지정 선택 파라미터는 전송 안 함.
     incident = page.items[0]
@@ -332,7 +330,7 @@ def test_traffic_incident_maps_altitude_key_to_longitude() -> None:
     assert incident.point_name == "동대구"
 
 
-def test_tollfee_between_tollgates_parses_money_and_distance() -> None:
+async def test_tollfee_between_tollgates_parses_money_and_distance() -> None:
     session = FakeSession(
         ex_payload(
             [
@@ -355,7 +353,7 @@ def test_tollfee_between_tollgates_parses_money_and_distance() -> None:
     )
     client = KrexClient(ex_api_key="ex-key", retry_backoff=0, session=session)
 
-    page = client.tollfee.between_tollgates(
+    page = await client.tollfee.between_tollgates(
         start_unit_code="101",
         end_unit_code="105",
         car_type="1",
@@ -367,7 +365,7 @@ def test_tollfee_between_tollgates_parses_money_and_distance() -> None:
     assert page.items[0].toll_fee == 2300
 
 
-def test_tollgate_list_preserves_code_strings() -> None:
+async def test_tollgate_list_preserves_code_strings() -> None:
     session = FakeSession(
         ex_payload(
             [
@@ -384,7 +382,7 @@ def test_tollgate_list_preserves_code_strings() -> None:
     )
     client = KrexClient(ex_api_key="ex-key", retry_backoff=0, session=session)
 
-    tollgate = client.tollfee.tollgate_list().items[0]
+    tollgate = (await client.tollfee.tollgate_list()).items[0]
 
     assert tollgate.unit_code == "007"
     assert tollgate.x == pytest.approx(127.1)
@@ -392,7 +390,7 @@ def test_tollgate_list_preserves_code_strings() -> None:
     assert tollgate.raw_coordinate.system is CoordinateSystem.WGS84
 
 
-def test_restarea_standard_data_uses_go_key_and_parses_bool() -> None:
+async def test_restarea_standard_data_uses_go_key_and_parses_bool() -> None:
     session = FakeSession(
         go_payload(
             [
@@ -413,7 +411,7 @@ def test_restarea_standard_data_uses_go_key_and_parses_bool() -> None:
     )
     client = KrexClient(go_api_key="go-key", retry_backoff=0, session=session)
 
-    rest_area = client.restarea.list_all(route_name="경부고속도로").items[0]
+    rest_area = (await client.restarea.list_all(route_name="경부고속도로")).items[0]
 
     assert session.last_url == "https://api.data.go.kr/openapi/tn_pubr_public_rest_area_api"
     assert session.last_params["serviceKey"] == "go-key"
@@ -427,7 +425,7 @@ def test_restarea_standard_data_uses_go_key_and_parses_bool() -> None:
     assert rest_area.lat == pytest.approx(37.332)
 
 
-def test_restarea_list_all_parses_entrpsNm_field() -> None:
+async def test_restarea_list_all_parses_entrpsNm_field() -> None:
     session = FakeSession(
         go_payload(
             [
@@ -446,18 +444,18 @@ def test_restarea_list_all_parses_entrpsNm_field() -> None:
     )
     client = KrexClient(go_api_key="go-key", retry_backoff=0, session=session)
 
-    rest_area = client.restarea.list_all().items[0]
+    rest_area = (await client.restarea.list_all()).items[0]
 
     assert rest_area.name == "강릉(강릉)"
     assert rest_area.route_name == "동해고속도로"
     assert rest_area.has_gas_station is True
 
 
-def test_restarea_weather_builds_query_and_parses_typed_rows() -> None:
+async def test_restarea_weather_builds_query_and_parses_typed_rows() -> None:
     session = FakeSession(ex_payload([rest_weather_row()]))
     client = KrexClient(ex_api_key="road-key", retry_backoff=0, session=session)
 
-    page = client.restarea.weather(sdate="20210507", std_hour=12)
+    page = await client.restarea.weather(sdate="20210507", std_hour=12)
 
     assert session.last_url.endswith("/openapi/restinfo/restWeatherList")
     assert session.last_params["key"] == "road-key"
@@ -484,24 +482,22 @@ def test_restarea_weather_builds_query_and_parses_typed_rows() -> None:
     assert item.raw["xValue"] == "127.104165"
 
 
-def test_restarea_weather_accepts_single_object_and_missing_sentinel() -> None:
-    session = FakeSession(
-        ex_payload(rest_weather_row(xValue="-99.000000", yValue="-99.000000"))
-    )
+async def test_restarea_weather_accepts_single_object_and_missing_sentinel() -> None:
+    session = FakeSession(ex_payload(rest_weather_row(xValue="-99.000000", yValue="-99.000000")))
     client = KrexClient(ex_api_key="road-key", retry_backoff=0, session=session)
 
-    item = client.restarea.weather(sdate="20210507", std_hour="12").items[0]
+    item = (await client.restarea.weather(sdate="20210507", std_hour="12")).items[0]
 
     assert item.raw_coordinate is None
     assert item.longitude is None
     assert item.latitude is None
 
 
-def test_restarea_latest_weather_looks_back_until_non_empty() -> None:
+async def test_restarea_latest_weather_looks_back_until_non_empty() -> None:
     session = FakeSession([ex_payload([]), ex_payload([rest_weather_row(stdHour="11")])])
     client = KrexClient(ex_api_key="road-key", retry_backoff=0, session=session)
 
-    page = client.restarea.latest_weather(
+    page = await client.restarea.latest_weather(
         when=datetime(2021, 5, 7, 12, 30),
         lookback_hours=2,
     )
@@ -511,18 +507,18 @@ def test_restarea_latest_weather_looks_back_until_non_empty() -> None:
     assert session.calls[1]["params"]["stdHour"] == "11"
 
 
-def test_restarea_weather_validates_date_and_hour() -> None:
+async def test_restarea_weather_validates_date_and_hour() -> None:
     client = KrexClient(ex_api_key="road-key", retry_backoff=0, session=FakeSession(ex_payload([])))
 
     with pytest.raises(ValueError):
-        client.restarea.weather(sdate="2021-05-07", std_hour=12)
+        (await client.restarea.weather(sdate="2021-05-07", std_hour=12))
     with pytest.raises(ValueError):
-        client.restarea.weather(sdate="20210507", std_hour=24)
+        (await client.restarea.weather(sdate="20210507", std_hour=24))
     with pytest.raises(ValueError):
-        client.restarea.latest_weather(lookback_hours=-1)
+        (await client.restarea.latest_weather(lookback_hours=-1))
 
 
-def test_restarea_weather_error_code_and_shape_errors() -> None:
+async def test_restarea_weather_error_code_and_shape_errors() -> None:
     auth_client = KrexClient(
         ex_api_key="bad-key",
         retry_backoff=0,
@@ -537,13 +533,13 @@ def test_restarea_weather_error_code_and_shape_errors() -> None:
     )
 
     with pytest.raises(KrexAuthError) as raised:
-        auth_client.restarea.weather(sdate="20210507", std_hour=12)
+        (await auth_client.restarea.weather(sdate="20210507", std_hour=12))
     assert "bad-key" not in str(raised.value)
     with pytest.raises(KrexParseError):
-        shape_client.restarea.weather(sdate="20210507", std_hour=12)
+        (await shape_client.restarea.weather(sdate="20210507", std_hour=12))
 
 
-def test_restarea_route_facilities_parse_service_area_master_fields() -> None:
+async def test_restarea_route_facilities_parse_service_area_master_fields() -> None:
     session = FakeSession(
         ex_payload(
             {
@@ -566,9 +562,11 @@ def test_restarea_route_facilities_parse_service_area_master_fields() -> None:
     )
     client = KrexClient(ex_api_key="ex-key", retry_backoff=0, session=session)
 
-    facility = client.restarea.route_facilities(
-        route_code="0010",
-        service_area_code="A0001",
+    facility = (
+        await client.restarea.route_facilities(
+            route_code="0010",
+            service_area_code="A0001",
+        )
     ).items[0]
 
     assert session.last_url.endswith("/openapi/business/serviceAreaRoute")
@@ -585,7 +583,7 @@ def test_restarea_route_facilities_parse_service_area_master_fields() -> None:
     assert facility.representative_food == "죽전라면"
 
 
-def test_restarea_fuel_prices_parse_money_and_lpg_flag() -> None:
+async def test_restarea_fuel_prices_parse_money_and_lpg_flag() -> None:
     session = FakeSession(
         ex_payload(
             [
@@ -609,7 +607,7 @@ def test_restarea_fuel_prices_parse_money_and_lpg_flag() -> None:
     )
     client = KrexClient(ex_api_key="ex-key", retry_backoff=0, session=session)
 
-    fuel = client.restarea.fuel_prices(oil_company="EX-OIL").items[0]
+    fuel = (await client.restarea.fuel_prices(oil_company="EX-OIL")).items[0]
 
     assert session.last_url.endswith("/openapi/business/curStateStation")
     assert session.last_params["oilCompany"] == "EX-OIL"
@@ -623,7 +621,7 @@ def test_restarea_fuel_prices_parse_money_and_lpg_flag() -> None:
     assert fuel.lpg_price == 1010
 
 
-def test_restarea_fuel_prices_treat_x_price_as_missing() -> None:
+async def test_restarea_fuel_prices_treat_x_price_as_missing() -> None:
     session = FakeSession(
         ex_payload(
             [
@@ -644,25 +642,25 @@ def test_restarea_fuel_prices_treat_x_price_as_missing() -> None:
     )
     client = KrexClient(ex_api_key="ex-key", retry_backoff=0, session=session)
 
-    fuel = client.restarea.fuel_prices(oil_company="EX-OIL").items[0]
+    fuel = (await client.restarea.fuel_prices(oil_company="EX-OIL")).items[0]
 
     assert fuel.gasoline_price is None
     assert fuel.diesel_price is None
     assert fuel.lpg_price is None
 
 
-def test_restarea_convenience_facilities_stays_raw_until_schema_is_verified() -> None:
+async def test_restarea_convenience_facilities_stays_raw_until_schema_is_verified() -> None:
     session = FakeSession(ex_payload([{"serviceAreaCode": "A0001", "unknownFacility": "Y"}]))
     client = KrexClient(ex_api_key="ex-key", retry_backoff=0, session=session)
 
-    page = client.restarea.convenience_facilities(service_area_name="죽전휴게소")
+    page = await client.restarea.convenience_facilities(service_area_name="죽전휴게소")
 
     assert session.last_url.endswith("/openapi/business/conveniServiceArea")
     assert session.last_params["serviceAreaName"] == "죽전휴게소"
     assert page.items[0] == {"serviceAreaCode": "A0001", "unknownFacility": "Y"}
 
 
-def test_food_price_parses_recommend_flag() -> None:
+async def test_food_price_parses_recommend_flag() -> None:
     session = FakeSession(
         ex_payload(
             {
@@ -677,54 +675,60 @@ def test_food_price_parses_recommend_flag() -> None:
     )
     client = KrexClient(ex_api_key="ex-key", retry_backoff=0, session=session)
 
-    food = client.restarea.food_price().items[0]
+    food = (await client.restarea.food_price()).items[0]
 
     assert food.food_name == "우동"
     assert food.price == 7000
     assert food.is_recommended is True
 
 
-def test_no_data_can_return_empty_page_when_configured() -> None:
+async def test_no_data_can_return_empty_page_when_configured() -> None:
     session = FakeSession({"code": "NO_DATA", "message": "empty"})
     client = KrexClient(ex_api_key="ex-key", retry_backoff=0, strict_no_data=False, session=session)
 
-    page = client.traffic.flow(route_no="9999")
+    page = await client.traffic.flow(route_no="9999")
 
     assert page.items == ()
 
 
-def test_no_data_raises_by_default() -> None:
+async def test_no_data_raises_by_default() -> None:
     session = FakeSession({"code": "NO_DATA", "message": "empty"})
     client = KrexClient(ex_api_key="ex-key", retry_backoff=0, session=session)
 
     with pytest.raises(KrexNotFoundError):
-        client.traffic.flow(route_no="9999")
+        (await client.traffic.flow(route_no="9999"))
 
 
-def test_invalid_public_params_fail_before_http_call() -> None:
+async def test_invalid_public_params_fail_before_http_call() -> None:
     session = FakeSession(ex_payload([]))
     client = KrexClient(ex_api_key="ex-key", retry_backoff=0, session=session)
 
     with pytest.raises(KrexInvalidParameterError):
-        client.tollfee.between_tollgates(start_unit_code="", end_unit_code="105", car_type="1")
+        (
+            await client.tollfee.between_tollgates(
+                start_unit_code="", end_unit_code="105", car_type="1"
+            )
+        )
     with pytest.raises(KrexInvalidParameterError):
-        client.traffic.by_ic(
-            ex_div_code="00",
-            unit_code="101",
-            in_out="0",
-            time_unit="9",
-            tcs_type="2",
-            car_type="1",
+        (
+            await client.traffic.by_ic(
+                ex_div_code="00",
+                unit_code="101",
+                in_out="0",
+                time_unit="9",
+                tcs_type="2",
+                car_type="1",
+            )
         )
     assert session.calls == []
 
 
-def test_malformed_model_record_raises_parse_error() -> None:
+async def test_malformed_model_record_raises_parse_error() -> None:
     session = FakeSession(ex_payload([{"unitName": "missing unit code"}]))
     client = KrexClient(ex_api_key="ex-key", retry_backoff=0, session=session)
 
     with pytest.raises(KrexParseError):
-        client.tollfee.tollgate_list()
+        (await client.tollfee.tollgate_list())
 
 
 def test_reference_codes_are_local_and_preserve_leading_zero_routes() -> None:
@@ -737,49 +741,51 @@ def test_reference_codes_are_local_and_preserve_leading_zero_routes() -> None:
     assert codes["car_type"]["1"] == "1종"
 
 
-def test_raw_and_generic_namespaces_build_expected_urls() -> None:
+async def test_raw_and_generic_namespaces_build_expected_urls() -> None:
     session = FakeSession(ex_payload([{"any": "value"}]))
     client = KrexClient(ex_api_key="ex-key", go_api_key="go-key", retry_backoff=0, session=session)
 
-    assert client.traffic.by_route(route_no="0010", time_unit="1").items[0] == {"any": "value"}
+    assert (await client.traffic.by_route(route_no="0010", time_unit="1")).items[0] == {
+        "any": "value"
+    }
     assert session.last_url.endswith("/openapi/trafficapi/trafficRoute")
 
-    client.traffic.vds_raw(vdsId="V001")
+    (await client.traffic.vds_raw(vdsId="V001"))
     assert session.last_url.endswith("/openapi/trafficapi/vdsRaw")
 
-    client.traffic.avc_raw(vds_id="V001", std_date="20260430")
+    (await client.traffic.avc_raw(vds_id="V001", std_date="20260430"))
     assert session.last_params["vdsId"] == "V001"
     assert session.last_url.endswith("/openapi/trafficapi/avcRaw")
 
-    client.restarea.parking(serviceAreaName="죽전")
+    (await client.restarea.parking(serviceAreaName="죽전"))
     assert session.last_url.endswith("/openapi/restinfo/restParking")
 
-    client.restarea.wifi()
+    (await client.restarea.wifi())
     assert session.last_url.endswith("/openapi/restinfo/restWifi")
 
-    client.restarea.restroom()
+    (await client.restarea.restroom())
     assert session.last_url.endswith("/openapi/restinfo/restRestroom")
 
-    client.restarea.disabled_facility()
+    (await client.restarea.disabled_facility())
     assert session.last_url.endswith("/openapi/restinfo/restDisabled")
 
-    client.restarea.bus_transit()
+    (await client.restarea.bus_transit())
     assert session.last_url.endswith("/openapi/restinfo/restBus")
 
-    client.facility.drowsy_shelter()
+    (await client.facility.drowsy_shelter())
     assert session.last_url.endswith("/openapi/restinfo/drowsyShelter")
 
 
-def test_data_go_generic_namespaces_build_expected_urls() -> None:
+async def test_data_go_generic_namespaces_build_expected_urls() -> None:
     session = FakeSession(go_payload([{"any": "value"}]))
     client = KrexClient(go_api_key="go-key", retry_backoff=0, session=session)
 
-    client.facility.tollgate_info()
+    (await client.facility.tollgate_info())
     assert session.last_url.endswith("/TollgateInfoService/getTollgateInfo")
     assert session.last_params["_type"] == "json"
 
-    client.facility.shoulder_lane()
+    (await client.facility.shoulder_lane())
     assert session.last_url.endswith("/ShoulderLaneService/getShoulderLane")
 
-    client.admin.procurement_contracts()
+    (await client.admin.procurement_contracts())
     assert session.last_url.endswith("/ProcurementContractService/getContracts")
