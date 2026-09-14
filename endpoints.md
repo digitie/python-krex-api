@@ -683,3 +683,7 @@ transport 내부의 연결 재시도는 라이브러리 밖의 동작이다.
 
 
 사용 예제: [docs/async-tps.md](docs/async-tps.md).
+# 2026-09-15 응답 호환성
+
+공공데이터포털 응답은 `response.header`/`response.body`와 최상위 `header`/`body`
+두 형태를 지원한다. 상태 코드 판정, 항목 정규화, 페이지 정보와 원문 보존은 동일하다.

@@ -328,7 +328,7 @@ def _normalize_ex_payload(payload: dict[str, Any], *, params: dict[str, Any]) ->
 
 def _normalize_go_payload(payload: dict[str, Any], *, params: dict[str, Any]) -> NormalizedPayload:
     try:
-        response = payload["response"]
+        response = payload.get("response", payload)
         header = response["header"]
         body = response.get("body", {})
     except (KeyError, TypeError) as exc:

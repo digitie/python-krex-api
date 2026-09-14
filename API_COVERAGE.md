@@ -107,3 +107,7 @@ transport 내부의 연결 재시도는 라이브러리 밖의 동작이다.
 
 
 사용 예제: [docs/async-tps.md](docs/async-tps.md).
+# 2026-09-15 재신청 확인
+
+전국휴게소 표준데이터는 활용 신청 후 HTTP 200 및 정상 코드 `00`을 반환했다.
+최상위 `header`/`body` 응답과 기존 `response` 감싸기 응답을 모두 정규화한다.
