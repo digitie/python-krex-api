@@ -1,0 +1,17 @@
+{
+  "name": "live-sample",
+  "function": "traffic.flow",
+  "description": "2026-09-19 실제 응답에서 양방향 2행을 추출했다. 인증정보·요청 URL은 제외하고 count만 표본 크기로 변경했다.",
+  "response": {
+    "body": {
+      "code": "SUCCESS",
+      "count": 2,
+      "list": [
+        {"stdDate":"20260919","stdHour":"1828","vdsId":"0010VDE00100","conzoneId":"0010CZE010","conzoneName":"구서IC-영락IC","routeNo":"0010","routeName":"경부선","updownTypeCode":"E","speed":"90","trafficAmout":"13","shareRatio":"0","timeAvg":"72","grade":"1"},
+        {"stdDate":"20260919","stdHour":"1828","vdsId":"0010VDS00100","conzoneId":"0010CZS010","conzoneName":"영락IC-구서IC","routeNo":"0010","routeName":"경부선","updownTypeCode":"S","speed":"84","trafficAmout":"33","shareRatio":"3","timeAvg":"77","grade":"1"}
+      ]
+    }
+  },
+  "processed": {},
+  "assertion": {"mode":"required_fields", "required_fields":["items", "total_count", "raw"]}
+}

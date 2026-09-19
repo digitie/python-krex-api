@@ -14,6 +14,7 @@ from .codes import (
     CoordinateSystem,
     Direction,
     DiscountType,
+    FlowDirection,
     IOType,
     TCSType,
 )
@@ -93,16 +94,23 @@ class TrafficByIc(KrexModel):
 
 
 class TrafficFlow(KrexModel):
+    """0405 VDS 관측값. 시각은 KST YYYYMMDDHHMM 문자열이며 음수 속도는 None이다.
+
+    방향은 FlowDirection.START(S)/END(E)로 제공한다. 같은 콘존의 여러
+    VDS 행을 합치지 않으며 VDS ID는 vds_id와 raw에, 원본 등급·방향은 raw에 보존한다.
+    """
+
     conzone_id: str | None
     conzone_name: str | None
     route_no: str | None
     route_name: str | None
-    direction: Direction | None
+    direction: FlowDirection | Direction | None
     speed: float | None
     free_flow_speed: float | None
     congestion_level: CongestionLevel | None
     updated_at: str | None
     raw: dict[str, Any]
+    vds_id: str | None = None
 
 
 class Incident(KrexModel):

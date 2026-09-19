@@ -1,12 +1,19 @@
 # API coverage
 
-Snapshot date: 2026-06-11
+상태 기준일: 2026-09-19 (`traffic.flow` 검증 갱신)
 
 이 문서는 섞이기 쉬운 세 가지 상태를 분리한다.
 
 - **이 저장소에 문서화됨**: `endpoints.md`에 등재됨.
 - **구현됨**: `KrexClient` method로 노출됨.
 - **Live 검증됨**: `tests/test_live_ex.py`에서 실제 provider를 호출해 확인함.
+
+0405는 2026-09-19에 인증 요청 총 3회로 조사·검증했다. 마지막 공개
+`traffic.flow(num_of_rows=20000)` 호출은 8,370행/69개 노선을 모두 파싱했다.
+기점 방향 4,188행, 종점 방향 4,182행, 음수 속도 결측 1,520행이었다.
+개수는 해당 시점의 관측값이며 고정 계약이 아니다. 인증키나 인증 URL은 저장하지 않았다.
+이후 추가한 `flow_all()`과 공개 `vds_id`는 같은 실제 응답 표본 및 가짜 세션으로
+검증했다. 추가 실호출은 하지 않았으며 새 메서드의 직접 실호출 검증 상태는 미검증이다.
 
 이 프로젝트는 `data.ex.co.kr`와 `data.go.kr`에 흩어진 한국도로공사 API 전체를 아직 완전히 감싼 wrapper가 아니다. 현재 저장소에 문서화된 endpoint set을 typed client로 제공하고, 더 넓은 공식 coverage는 backlog로 명시한다.
 
@@ -16,7 +23,8 @@ Snapshot date: 2026-06-11
 |---|---|---|---:|---:|---|
 | `traffic.by_ic()` | `data.ex.co.kr` | `Page[TrafficByIc]` | Yes | Yes | 실제 응답은 top-level `trafficIc`와 `trafficAmout` 같은 field variant를 사용한다. |
 | `traffic.by_route()` | `data.ex.co.kr` | `Page[dict]` | Yes | Yes | Empty success가 `count=0`, `list=[]`일 수 있다. |
-| `traffic.flow()` | `data.ex.co.kr` | `Page[TrafficFlow]` | Yes | No | 과거 live probe에서 404가 반환되어 portal UI 확인 전까지 unverified로 둔다. |
+| `traffic.flow()` | `data.ex.co.kr` | `Page[TrafficFlow]` | Yes | Yes | 2026-09-19 공식 0405 `odtraffic/trafficAmountByRealtime`와 실제 8,370행 확인. 필터·페이지 분할은 로컬 처리. `S/E`는 기점/종점, 시각은 `stdDate/stdHour`, 음수 속도는 결측. 2행 표본으로 오프라인 재현. |
+| `traffic.flow_all()` | `data.ex.co.kr` | `Page[TrafficFlow]` | Yes | No | 동일 엔드포인트의 전체 응답을 한 번 조회하고 모든 VDS 행을 반환한다. `flow()`가 재사용한다. 실제 표본의 `vdsId` 및 1,000행 초과·같은 콘존의 여러 VDS 보존을 오프라인 검증. |
 | `traffic.incident()` | `data.ex.co.kr` | `Page[Incident]` | Yes | Yes | 구 `trafficapi/incident`는 404로 제거 확인. `burstInfo/realTimeSms`(apiId 0611)로 repoint, 2026-06-11 live 검증 (count=190). 경도는 `altitude` 키로 온다. `realTimeSMSList`와 0 이상인 `count`가 없는 HTTP 200 본문은 파싱 오류로 거부한다. |
 | `traffic.vds_raw()` | `data.ex.co.kr` | `Page[dict]` | Yes | No | High-volume raw endpoint이므로 live test는 date/time range를 좁힌다. |
 | `traffic.avc_raw()` | `data.ex.co.kr` | `Page[dict]` | Yes | No | `vds_id`, `std_date`가 필요하다. |
@@ -45,12 +53,12 @@ Snapshot date: 2026-06-11
 
 | Category | Count |
 |---|---:|
-| `endpoints.md`에 문서화된 method | 26 |
-| `KrexClient` namespace에 구현된 method | 27 |
-| Typed public model을 반환하는 method | 10 |
+| `endpoints.md`에 문서화된 method | 27 |
+| `KrexClient` namespace에 구현된 method | 28 |
+| Typed public model을 반환하는 method | 11 |
 | Raw `dict` record를 반환하는 method | 13 |
 | Local reference helper | 3 |
-| Provider live 검증 완료 method | 6 |
+| Provider live 검증 완료 method | 7 |
 
 ## 더 넓은 공식 API backlog
 

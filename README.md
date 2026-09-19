@@ -28,6 +28,18 @@
 ## 핵심 특징
 
 - **네임스페이스형 클라이언트**: `client.traffic.flow()`, `client.tollfee.between_tollgates()`처럼 문서의 API 범주와 같은 구조로 호출합니다.
+
+`traffic.flow()`는 공식 0405 실시간 소통 데이터를 한 번 조회한 뒤 노선·콘존·방향
+필터와 페이지 분할을 로컬에서 적용합니다. 기본 페이지는 최대 1,000행이며
+`total_count`는 필터 후 전체 건수입니다. 전체 수집에는
+`page = await client.traffic.flow_all()`을 사용하세요. 인자 없이 한 응답의 모든 행을
+`Page[TrafficFlow]`로 반환하며 페이지 크기를 추측할 필요가 없습니다.
+`flow()`도 내부에서 `flow_all()`을 호출한 뒤 로컬 필터·페이지 처리를 적용합니다.
+방향은 `FlowDirection.START`(`S`, 기점)/`END`(`E`, 종점)를 사용합니다.
+기존 `Direction.UP/DOWN/EAST/SOUTH`와는 의미가 달라 `flow()` 필터에 사용할 수 없습니다.
+`updated_at`은 KST로 취급하는 `YYYYMMDDHHMM` 문자열이며, 음수 속도는 `None`입니다.
+같은 콘존의 여러 VDS 행은 그대로 유지하며 공식 `vdsId`는 `item.vds_id`로 제공합니다.
+과거 응답에 이 필드가 없으면 `None`입니다. [상세 계약](endpoints.md#실시간-소통)을 참고하세요.
 - **두 포털 동시 지원**: `data.ex.co.kr` 키(`KEX_EX_API_KEY`)와 `data.go.kr` 키(`DATA_GO_KR_SERVICE_KEY`)를 분리해 사용합니다.
 - **로컬 `.env` 기본 로딩**: 환경변수가 없으면 현재 작업 디렉터리부터 부모 디렉터리의 `.env`를 찾아 키를 읽고, 복붙 과정에서 섞인 공백 문자를 제거합니다.
 - **API 카탈로그**: 구현된 API의 함수명, 데이터셋명, 포털, 엔드포인트, 서비스키 발급/활용신청 링크를 `api_catalog()` 또는 `get_api_catalog()`로 조회할 수 있습니다.
@@ -177,6 +189,7 @@ client = KrexClient(
 | 교통 | `traffic.by_ic()` | `data.ex.co.kr` | `Page[TrafficByIc]` |
 | 교통 | `traffic.by_route()` | `data.ex.co.kr` | `Page[dict]` |
 | 교통 | `traffic.flow()` | `data.ex.co.kr` | `Page[TrafficFlow]` |
+| 교통 | `traffic.flow_all()` | `data.ex.co.kr` | `Page[TrafficFlow]` |
 | 교통 | `traffic.incident()` | `data.ex.co.kr` | `Page[Incident]` |
 | 교통 | `traffic.vds_raw()`, `traffic.avc_raw()` | `data.ex.co.kr` | `Page[dict]` |
 | 통행료 | `tollfee.between_tollgates()` | `data.ex.co.kr` | `Page[TollFee]` |

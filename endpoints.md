@@ -158,34 +158,71 @@ asyncio.run(main())
 
 ### 실시간 소통
 
-도로별 통행속도, 혼잡도(원활/지체/정체) 정보.
+VDS별 통행속도와 콘존 정보(apiId `0405`). 같은 콘존에 여러 VDS 관측 행이 있으며
+라이브러리는 이들을 집계하거나 중복 제거하지 않는다.
 
 - **포털**: `data.ex.co.kr`
-- **경로**: `/openapi/trafficapi/realFlow`
-- **공공데이터포털 대응**: 데이터셋 ID `15076684`
-- **메서드**: `client.traffic.flow()`
+- **경로**: `/openapi/odtraffic/trafficAmountByRealtime`
+- **공식 명세**: [실시간 소통 데이터](https://data.ex.co.kr/openapi/basicinfo/openApiInfoM?apiId=0405)
+- **메서드**: `client.traffic.flow()`, `client.traffic.flow_all()`
+
+전체 수집은 인자 없는 `page = await client.traffic.flow_all()`을 사용한다.
+한 번의 논리적 조회에서 받은 전체 응답을 검증하고 모든 행을 `Page[TrafficFlow]`로
+반환한다. 필터·페이지 분할·건수 상한·중복 제거는 없으며 `len(page.items)`와
+`page.total_count`는 일치한다. `page_no`와 `num_of_rows`는 `None`, `raw`는
+원본 전체 응답이다. 공통 HTTP 재시도 정책은 유지한다.
+이는 여러 응답을 페이지별로 합치지 않는다는 보장이며, 공급자가 모든 VDS의
+수집시각을 같게 보장한다는 뜻은 아니다.
 
 **파라미터**
 
 | 이름 | 필수 | 타입 | 설명 |
 |------|------|------|------|
-| `routeNo` | O | `code` | 노선번호 (생략 시 전체) |
-| `conzoneId` | O | `str` | 콘존 ID (구간 ID) |
-| `dirType` | O | `code` | 방향 |
+| `key` | 필수 | `str` | 인증키, 클라이언트가 자동 제공 |
+| `type` | 필수 | `str` | `json`, 클라이언트가 자동 제공 |
+
+2026-09-19 공식 동적 메타데이터(`openApiInfoDetail`, `openApiInfoPop`)에는
+필터·페이지 입력이 없다. 실제 `routeNo=0010`, `numOfRows=2`, `pageNo=2` 요청도
+69개 노선 8,370행 전체를 반환했다. 따라서 이 인자들을 서버로 보내지 않는다.
+
+기존 Python 인자 중 `route_no`, `conzone_id`, `num_of_rows=1000`, `page_no=1`을
+유지하며 `flow_all()`로 전체 응답 검증 → 로컬 필터 → 로컬 페이지 분할 순으로 적용한다.
+`direction`은 `FlowDirection.START`/`END` 또는 `"S"`/`"E"`만 받는다.
+의미가 다른 `Direction` 인스턴스와 `"0"`/`"1"`은 요청 전에 거부한다.
+`Page.total_count`는 필터 후 건수, `Page.raw["count"]`는 서버 전체 건수다.
+페이지 크기·번호는 양의 정수여야 한다. 필터 결과가 없거나 마지막 페이지를 넘으면 빈 페이지다.
+각 호출은 전체 응답을 다시 가져오므로 다른 페이지 호출 사이에 수집 시각이 바뀔 수 있다.
+전체 자료가 필요하면 `flow_all()`을 한 번 호출한다. 자동 반복 호출은 하지 않는다.
 
 **응답 필드**
 
 | 필드 | 설명 |
 |------|------|
-| `conzoneId` | 구간 식별자 |
-| `conzoneName` | 구간명 (예: "서울→수원") |
-| `routeNo` / `routeName` | 노선 번호/명 |
-| `speed` | 평균 통행속도 (km/h) |
-| `tmFreeFlow` | 자유속도 |
-| `congestionLevel` | `1`=원활, `2`=서행, `3`=지체, `4`=정체 |
-| `updTime` | 갱신 시각 |
+| `conzoneId` / `conzoneName` | 구간 식별자/명 → `conzone_id` / `conzone_name` |
+| `routeNo` / `routeName` | 노선 번호/명. 선행 0 보존 |
+| `vdsId` | VDS 식별자 → `vds_id: str \| None = None`. 선행 0과 원문 `raw` 보존. 실제 표본은 `0010VDE00100`, `0010VDS00100`. 과거 응답의 필드 누락은 `None` |
+| `stdDate` / `stdHour` | 수집일자 `YYYYMMDD` / 수집시각 `HHMM` → `updated_at=YYYYMMDDHHMM` 문자열. 한국 현지 시각(KST)으로 취급 |
+| `updownTypeCode` | `S`=기점 방향 → `FlowDirection.START`, `E`=종점 방향 → `FlowDirection.END`. 동서남북 또는 상하행으로 추정하지 않음 |
+| `speed` | 속도(km/h) → `speed`. 실제 음수 결측값은 `None`, 0은 정지 속도로 보존 |
+| `grade` | `0`=판정불가 → `None`, `1`=원활(80 이상) → `SMOOTH`, `2`=서행(40 이상 80 미만) → `SLOW`, `3`=정체(0 이상 40 미만) → `STOP` |
+| `timeAvg` | 통행시간, `raw`에 보존. 공식 메타데이터에 단위 없음. 자유속도로 사용하지 않음 |
+| `trafficAmout` / `shareRatio` | 교통량(대) / 점유율, `raw`에 보존 |
 
-> **갱신 주기**: 5분. 더 빠른 폴링은 같은 데이터를 반환하므로 호출 한도만 소모.
+`TrafficFlow`의 기존 필드명과 `updTime`, `avgSpeed`, `dirType` 등 과거 응답 별칭은
+유지한다. 현행 응답은 자유속도를 주지 않으므로 `free_flow_speed=None`이다.
+기존 공통 `CongestionLevel.STOP`의 값은 `"4"`이며, 0405 원본 `grade="3"`과 다르다.
+원본 등급·방향·음수 속도는 항상 `raw`에서 확인할 수 있다.
+
+두 메서드 모두 응답에 `list`와 정확한 전체 `count`가 있어야 한다. 누락·잘못된 타입·건수 불일치·
+일부 행 파싱 실패는 `KrexParseError`다. 명시적인 `count=0, list=[]`는 정상 빈 응답이다.
+`NO_DATA` 오류는 기존 `strict_no_data` 설정을 따르지만, 잘못된 응답은 이 설정과
+무관하게 거부한다. 검증을 통과한 단일 객체 `list`도 1행으로 정규화한다.
+
+근거는 공식 [JavaScript](https://data.ex.co.kr/js/sub/openApiInfo.js)가 호출하는
+`POST /openapi/basicinfo/openApiInfo`, `openApiInfoDetail`, `openApiInfoPop`
+(`apiId=0405`)와 실제 응답이다. 명세에는 시간대·갱신 주기·통행시간 단위가 명시되지
+않았다. KST 해석은 한국 현지 수집시각과 검증 시각이 일치한 관측에 근거하며,
+갱신 주기를 5분으로 단정하지 않는다.
 
 ---
 

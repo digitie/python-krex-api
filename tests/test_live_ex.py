@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from krex import CarType, KrexClient, RoadOperator, TCSType, TimeUnit
+from krex import CarType, FlowDirection, KrexClient, RoadOperator, TCSType, TimeUnit
 
 
 def _load_local_env() -> None:
@@ -19,13 +19,36 @@ def _load_local_env() -> None:
         os.environ.setdefault(key.strip(), value.strip())
 
 
-def _live_client() -> KrexClient:
+def _live_client(*, max_retries: int = 1) -> KrexClient:
     _load_local_env()
     if os.getenv("KEX_LIVE") != "1":
         pytest.skip("set KEX_LIVE=1 to run live data.ex.co.kr tests")
     if not os.getenv("KEX_EX_API_KEY"):
         pytest.skip("KEX_EX_API_KEY is not set")
-    return KrexClient.from_env(timeout=10, max_retries=1, retry_backoff=0)
+    return KrexClient.from_env(timeout=10, max_retries=max_retries, retry_backoff=0)
+
+
+@pytest.mark.live
+async def test_live_traffic_flow_parses_complete_snapshot() -> None:
+    async with _live_client(max_retries=0) as client:
+        try:
+            page = await client.traffic.flow(num_of_rows=20000)
+        except Exception as exc:
+            # 공급자/네트워크 예외의 원문이나 인증 URL을 테스트 로그에 출력하지 않는다.
+            raise AssertionError(f"live traffic flow failed: {type(exc).__name__}") from None
+    assert page.items
+    assert page.total_count == len(page.items)
+    assert page.raw is not None and page.raw["count"] == page.total_count
+    assert all(item.direction in {FlowDirection.START, FlowDirection.END} for item in page)
+    assert all(item.updated_at and len(item.updated_at) == 12 for item in page)
+    assert all(item.speed is None or item.speed >= 0 for item in page)
+    assert all(item.free_flow_speed is None for item in page)
+    print(
+        f"parsed={len(page.items)}, routes={len({item.route_no for item in page})}, "
+        f"missing_speed={sum(item.speed is None for item in page)}, "
+        f"start={sum(item.direction is FlowDirection.START for item in page)}, "
+        f"end={sum(item.direction is FlowDirection.END for item in page)}"
+    )
 
 
 @pytest.mark.live

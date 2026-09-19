@@ -1,5 +1,21 @@
 # 변경 기록
 
+## 2026-09-19 — 실시간 소통 조회 복구
+
+- 인자 없는 `traffic.flow_all()`이 한 응답의 모든 행을 `Page[TrafficFlow]`로 반환한다.
+  `flow()`는 이를 재사용한 뒤 기존 로컬 필터·페이지 분할을 적용한다.
+  `TrafficFlow.vds_id: str | None = None`에 공식 `vdsId`를 보존한다.
+  실제 표본으로 필드명을 검증했고, 같은 콘존의 여러 VDS를 합치지 않는다.
+- `traffic.flow()`를 공식 0405 `/openapi/odtraffic/trafficAmountByRealtime`로 수정했다.
+  서버가 제공하지 않는 필터·페이지 인자는 로컬 처리하며 기존 이름·기본값을 유지한다.
+- `stdDate/stdHour`를 기존 `updated_at` 문자열로 조합하고 음수 속도는 결측 처리한다.
+  `grade=3`은 `CongestionLevel.STOP`으로 매핑하며 `timeAvg`를 자유속도로 사용하지 않는다.
+- `FlowDirection.START/END`를 공개했다. 현행 `S/E`는 기점/종점이므로
+  `flow(direction=...)`에서 기존 `Direction`과 `0/1`을 거부한다.
+  `TrafficFlow.direction`은 현행 `FlowDirection`과 과거 응답의 `Direction`을 지원한다.
+- 목록·건수 및 모든 행을 검증하고 잘못된 응답을 빈 성공이나 일부 성공으로 숨기지 않는다.
+  실제 응답에서 추출한 인증정보 없는 2행 표본과 회귀 테스트를 추가했다.
+
 ## 2026-09-14 — native async와 공통 TPS
 
 KrexClient와 서비스·debug를 native async로 전환하고 동기 bridge/Async 접두사/aio를 제거했다. 공통 AsyncTokenBucket과 max_rps/rate_limiter를 공개한다. 기존 기본 5 TPS·capacity=1과 재시도 과금을 보존하고 리다이렉트·동시 디버그·주입 세션 수명을 함께 처리한다.
