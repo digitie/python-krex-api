@@ -26,6 +26,7 @@ from .codes import (
     CoordinateSystem,
     Direction,
     DiscountType,
+    FlowDirection,
     IOType,
     KrexCode,
     RoadOperator,
@@ -282,22 +283,61 @@ class TrafficService:
         *,
         route_no: str | None = None,
         conzone_id: str | None = None,
-        direction: Direction | str | None = None,
+        direction: FlowDirection | str | None = None,
         num_of_rows: int = 1000,
         page_no: int = 1,
     ) -> Page[TrafficFlow]:
+        """0405 전체 응답을 한 번 조회한 뒤 로컬 필터와 페이지 분할을 적용한다."""
         try:
-            return await self._client._page_ex(
-                "/openapi/trafficapi/realFlow",
-                {
-                    "routeNo": route_no,
-                    "conzoneId": conzone_id,
-                    "dirType": _optional_code(Direction, direction, "direction"),
-                    "numOfRows": num_of_rows,
-                    "pageNo": page_no,
-                },
-                _traffic_flow,
+            if isinstance(direction, Direction):
+                raise KrexInvalidParameterError(
+                    "flow direction requires FlowDirection, not Direction"
+                )
+            direction_code = _optional_code(FlowDirection, direction, "direction")
+            for name, value in (("num_of_rows", num_of_rows), ("page_no", page_no)):
+                if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+                    raise KrexInvalidParameterError(f"{name} must be a positive integer")
+            for name, filter_value in (("route_no", route_no), ("conzone_id", conzone_id)):
+                if filter_value is not None and (
+                    not isinstance(filter_value, str) or not filter_value.strip()
+                ):
+                    raise KrexInvalidParameterError(f"{name} must be a non-empty string")
+            page = await self.flow_all()
+            items = tuple(
+                item for item in page.items
+                if (route_no is None or item.route_no == route_no)
+                and (conzone_id is None or item.conzone_id == conzone_id)
+                and (direction_code is None or item.direction == direction_code)
             )
+            start = (page_no - 1) * num_of_rows
+            return Page(
+                items=items[start:start + num_of_rows],
+                page_no=page_no,
+                num_of_rows=num_of_rows,
+                total_count=len(items),
+                raw=page.raw,
+            )
+        except KrexError as exc:
+            self._client._http.protect_error(exc)
+            raise exc from None
+
+    async def flow_all(self) -> Page[TrafficFlow]:
+        """0405 전체 응답 한 개를 검증해 반환한다. 필터·페이지 분할·집계는 하지 않는다.
+
+        각 VDS 행을 보존하며 공통 HTTP 재시도 정책은 그대로 적용한다.
+        공급자가 모든 행의 수집시각을 같게 보장한다는 뜻은 아니다.
+        """
+        try:
+            try:
+                payload = await self._client._http.get_ex(
+                    "/openapi/odtraffic/trafficAmountByRealtime"
+                )
+            except KrexNotFoundError:
+                if self._client.strict_no_data:
+                    raise
+                return Page(items=(), total_count=0)
+            page = _parse_traffic_flow_page(payload)
+            return Page(items=page.items, total_count=page.total_count, raw=page.raw)
         except KrexError as exc:
             self._client._http.protect_error(exc)
             raise exc from None
@@ -756,20 +796,67 @@ def _traffic_by_ic(row: dict[str, Any]) -> TrafficByIc:
     )
 
 
+def _parse_traffic_flow_page(payload: NormalizedPayload) -> Page[TrafficFlow]:
+    """0405는 전체 목록을 반환하므로 누락된 목록·건수·부분 파싱을 거부한다."""
+    raw = payload.raw
+    raw_items = raw.get("list")
+    count = raw.get("count")
+    if not isinstance(raw_items, (dict, list)) or raw_items == {}:
+        raise KrexParseError("traffic flow response must contain a list or record", response=raw)
+    if (
+        isinstance(count, bool)
+        or not isinstance(count, (int, str))
+        or not str(count).isascii()
+        or not str(count).isdigit()
+        or int(count) != len(payload.items)
+    ):
+        raise KrexParseError("traffic flow count must match the complete list", response=raw)
+    page = _parse_page(payload, _traffic_flow)
+    if len(page.items) != len(payload.items):
+        raise KrexParseError("traffic flow response contains invalid records", response=raw)
+    return page
+
+
 def _traffic_flow(row: dict[str, Any]) -> TrafficFlow:
+    conzone_id = strip_or_none(_required(row, "conzoneId", "conzoneID"))
+    direction: FlowDirection | Direction | None = _enum_or_none(
+        Direction, _get(row, "dirType", "directionCode")
+    )
+    if "updownTypeCode" in row:
+        # 0405의 S/E는 South/East가 아니라 기점/종점 방향이다.
+        direction = FlowDirection(str(row["updownTypeCode"]).strip())
+    congestion_level = _enum_or_none(
+        CongestionLevel, _get(row, "congestionLevel", "conzoneGrade")
+    )
+    if "grade" in row:
+        congestion_level = {
+            "0": None, "1": CongestionLevel.SMOOTH,
+            "2": CongestionLevel.SLOW, "3": CongestionLevel.STOP,
+        }[str(row["grade"]).strip()]
+    updated_at = strip_or_none(_get(row, "updTime", "updateTime", "updatedAt"))
+    if "stdDate" in row or "stdHour" in row:
+        day = str(_required(row, "stdDate")).strip()
+        hour = str(_required(row, "stdHour")).strip()
+        if (
+            len(day) != 8 or len(hour) != 4
+            or not (day + hour).isascii() or not (day + hour).isdigit()
+        ):
+            raise ValueError("traffic flow stdDate/stdHour must be YYYYMMDD/HHMM")
+        updated_at = datetime.strptime(day + hour, "%Y%m%d%H%M").strftime("%Y%m%d%H%M")
+    speed = to_float_or_none(_get(row, "speed", "avgSpeed"))
+    if speed is not None and speed < 0:
+        speed = None
     return TrafficFlow(
-        conzone_id=strip_or_none(_get(row, "conzoneId", "conzoneID")),
+        vds_id=strip_or_none(_get(row, "vdsId")),
+        conzone_id=conzone_id,
         conzone_name=strip_or_none(_get(row, "conzoneName")),
         route_no=strip_or_none(_get(row, "routeNo")),
         route_name=strip_or_none(_get(row, "routeName")),
-        direction=_enum_or_none(Direction, _get(row, "dirType", "directionCode")),
-        speed=to_float_or_none(_get(row, "speed", "avgSpeed")),
+        direction=direction,
+        speed=speed,
         free_flow_speed=to_float_or_none(_get(row, "tmFreeFlow", "freeFlowSpeed")),
-        congestion_level=_enum_or_none(
-            CongestionLevel,
-            _get(row, "congestionLevel", "conzoneGrade"),
-        ),
-        updated_at=strip_or_none(_get(row, "updTime", "updateTime", "updatedAt")),
+        congestion_level=congestion_level,
+        updated_at=updated_at,
         raw=row,
     )
 

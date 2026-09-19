@@ -75,10 +75,20 @@ _CATALOG: tuple[ApiCatalogItem, ...] = (
     _ex(
         "traffic.flow",
         "한국도로공사_실시간 소통정보",
-        "/openapi/trafficapi/realFlow",
+        "/openapi/odtraffic/trafficAmountByRealtime",
         "Page[TrafficFlow]",
-        "콘존별 실시간 속도와 정체 상태입니다.",
+        "VDS별 실시간 속도와 콘존 정보입니다. 필터와 페이지 분할은 로컬에서 처리합니다.",
+        live_verified=True,
+        fixture_supported=True,
+    ),
+    _ex(
+        "traffic.flow_all",
+        "한국도로공사_실시간 소통정보 전체",
+        "/openapi/odtraffic/trafficAmountByRealtime",
+        "Page[TrafficFlow]",
+        "하나의 전체 응답에 포함된 모든 VDS 관측값을 필터·페이지 분할 없이 반환합니다.",
         live_verified=False,
+        fixture_supported=True,
     ),
     _ex(
         "traffic.incident",

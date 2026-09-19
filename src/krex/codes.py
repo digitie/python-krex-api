@@ -132,6 +132,17 @@ class Direction(KrexCode):
         return _DIRECTION_LABELS
 
 
+class FlowDirection(KrexCode):
+    """0405 소통 데이터의 기점/종점 방향. 방위나 상하행을 추측하지 않는다."""
+
+    START = "S"
+    END = "E"
+
+    @classmethod
+    def _label_map(cls) -> dict[str, str]:
+        return {"S": "기점 방향", "E": "종점 방향"}
+
+
 class CongestionLevel(KrexCode):
     SMOOTH = "1"
     SLOW = "2"

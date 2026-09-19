@@ -1,6 +1,6 @@
 import pytest
 
-from krex import CarType, CongestionLevel, CoordinateSystem, Direction, TCSType
+from krex import CarType, CongestionLevel, CoordinateSystem, Direction, FlowDirection, TCSType
 from krex.codes import coerce_code
 from krex.exceptions import KrexInvalidParameterError
 
@@ -10,6 +10,8 @@ def test_enum_labels_are_stable() -> None:
     assert TCSType.HIPASS.label == "하이패스"
     assert Direction.UP.label == "상행"
     assert CongestionLevel.STOP.label == "정체"
+    assert FlowDirection.START.label == "기점 방향"
+    assert FlowDirection.END.label == "종점 방향"
 
 
 def test_car_type_from_label_accepts_label_or_code() -> None:

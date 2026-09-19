@@ -94,14 +94,16 @@ def test_explicit_client_keys_are_normalized_before_env_fallback(tmp_path: Path)
 
 
 async def test_aio_client_matches_sync_service_shape() -> None:
-    session = FakeSession(ex_payload([{"conzoneId": "0010CZE010", "speed": "87.5"}]))
+    session = FakeSession(
+        ex_payload([{"conzoneId": "0010CZE010", "routeNo": "0010", "speed": "87.5"}])
+    )
     client = KrexClient(ex_api_key="ex-key", retry_backoff=0, session=session)
 
     page = await client.traffic.flow(route_no="0010")
 
     assert isinstance(client, KrexClient)
     assert page.items[0].conzone_id == "0010CZE010"
-    assert session.last_url.endswith("/openapi/trafficapi/realFlow")
+    assert session.last_url.endswith("/openapi/odtraffic/trafficAmountByRealtime")
 
 
 def rest_weather_row(**overrides: Any) -> dict[str, Any]:
@@ -195,11 +197,11 @@ async def test_traffic_flow_accepts_single_dict_response() -> None:
     )
     client = KrexClient(ex_api_key="ex-key", retry_backoff=0, session=session)
 
-    page = await client.traffic.flow(route_no="0010", direction=Direction.UP)
+    page = await client.traffic.flow(route_no="0010")
 
-    assert session.last_params["routeNo"] == "0010"
-    assert session.last_params["dirType"] == "0"
+    assert session.last_params == {"key": "ex-key", "type": "json"}
     flow = page.items[0]
+    assert flow.direction is Direction.UP
     assert flow.congestion_level is CongestionLevel.SMOOTH
     assert flow.speed == pytest.approx(87.5)
     assert flow.free_flow_speed == pytest.approx(100.0)

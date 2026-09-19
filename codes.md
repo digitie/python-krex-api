@@ -16,6 +16,7 @@
 - [진출입 (IOType)](#진출입-iotype)
 - [시간 단위 (TimeUnit)](#시간-단위-timeunit)
 - [방향 (Direction)](#방향-direction)
+- [실시간 소통 방향 (FlowDirection)](#실시간-소통-방향-flowdirection)
 - [혼잡도 (CongestionLevel)](#혼잡도-congestionlevel)
 - [할인 유형 (DiscountType)](#할인-유형-discounttype)
 - [노선 코드](#노선-코드)
@@ -122,7 +123,19 @@ CarType.from_label("1종")     # CarType.LIGHT
 
 ---
 
+## 실시간 소통 방향 (FlowDirection)
+
+0405 `traffic.flow()`는 별도 `FlowDirection`을 사용한다.
+`FlowDirection.START="S"`는 기점 방향, `FlowDirection.END="E"`는 종점 방향이다.
+이 코드들을 기존 `Direction.SOUTH/EAST`나 `UP/DOWN`으로 해석하면 안 된다.
+과거 응답의 `dirType`은 기존 `Direction`으로 파싱하는 호환성을 유지한다.
+
 ## 혼잡도 (CongestionLevel)
+
+0405의 원본 `grade`는 `0`=판정불가, `1`=원활(80km/h 이상),
+`2`=서행(40 이상 80 미만), `3`=정체(0 이상 40 미만)다.
+각각 `None`, `SMOOTH`, `SLOW`, `STOP`으로 정규화한다. 아래 공통 enum의
+기존 값은 보존하므로 `STOP.value="4"`와 원본 `grade="3"`을 혼동하지 않는다.
 
 실시간 소통 정보의 혼잡 수준.
 

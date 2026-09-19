@@ -19,7 +19,15 @@ def test_api_catalog_exposes_human_readable_names_and_key_links() -> None:
     assert isinstance(traffic, ApiCatalogItem)
     assert traffic.dataset_name == "한국도로공사_실시간 소통정보"
     assert traffic.service_key_url == "https://data.ex.co.kr/openapi/apikey/requestKey"
-    assert traffic.endpoint == "/openapi/trafficapi/realFlow"
+    assert traffic.endpoint == "/openapi/odtraffic/trafficAmountByRealtime"
+    assert traffic.live_verified is True
+    assert traffic.fixture_supported is True
+    all_traffic = get_api_catalog_item("traffic.flow_all")
+    assert all_traffic is not None
+    assert all_traffic.endpoint == traffic.endpoint
+    assert all_traffic.return_type == "Page[TrafficFlow]"
+    assert all_traffic.fixture_supported is True
+    assert all_traffic.live_verified is False
     assert all(item.dataset_name and item.dataset_name != item.function for item in items)
     assert all(item.service_key_url for item in items if item.provider != "local")
 

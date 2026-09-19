@@ -96,6 +96,9 @@ asyncio.run(main())
 
 기본 `strict_no_data=True`는 공급자의 NO_DATA를 예외로 전달한다.
 빈 Page를 받으려면 생성자에 `strict_no_data=False`를 명시한다.
+`traffic.flow()`와 `traffic.flow_all()`의 명시적인 `count=0, list=[]`는 정상 빈 응답이다.
+목록·건수 누락, 건수 불일치, 일부 행 파싱 실패는 `strict_no_data=False`에서도
+`KrexParseError`로 거부한다. 빈 필터 결과나 범위 밖 로컬 페이지는 빈 `Page`다.
 `latest_weather`는 과거 시간대를 찾는 목적에 맞게 NO_DATA인 시간대를 건너뛴다.
 
 ```python

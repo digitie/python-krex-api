@@ -56,7 +56,7 @@ async def test_debug_call_returns_request_response_and_typed_result() -> None:
     assert isinstance(run, DebugRun)
     assert run.error is None
     assert run.request["method"] == "GET"
-    assert run.request["url"].endswith("/openapi/trafficapi/realFlow")
+    assert run.request["url"].endswith("/openapi/odtraffic/trafficAmountByRealtime")
     assert run.request["query"]["key"] == "<REDACTED>"
     assert run.response["status_code"] == 200
     assert jsonable(run.processed)["items"][0]["speed"] == 87.5
