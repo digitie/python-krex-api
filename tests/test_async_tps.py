@@ -257,8 +257,7 @@ async def test_owned_session_sends_library_user_agent(monkeypatch: pytest.Monkey
     """
     from importlib.metadata import version
 
-    from krex._http import DEFAULT_USER_AGENT
-
+    expected = f"python-krex-api/{version('python-krex-api')}"
     seen: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -277,8 +276,7 @@ async def test_owned_session_sends_library_user_agent(monkeypatch: pytest.Monkey
     monkeypatch.setattr(httpx, "AsyncClient", OwnedClient)
     async with KrexClient(ex_api_key="fake-key", max_retries=0) as client:
         await client.traffic.by_route(time_unit="1", route_no="0010")
-    assert DEFAULT_USER_AGENT == f"python-krex-api/{version('python-krex-api')}"
-    assert seen == [DEFAULT_USER_AGENT]
+    assert seen == [expected]
 
 
 async def test_caller_session_user_agent_is_kept() -> None:
