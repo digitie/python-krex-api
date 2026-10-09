@@ -1,5 +1,13 @@
 # 변경 기록
 
+## 2026-10-10 — 기본 User-Agent
+
+- 라이브러리가 직접 만드는 HTTPX session이 `User-Agent: python-krex-api/<version>`을 보낸다
+  (버전은 설치된 package metadata, `krex._http.DEFAULT_USER_AGENT`). data.ex.co.kr WAF가 2026-10-08
+  13:35 KST 무렵부터 `python-httpx/*`·`curl/*` 기본 UA를 키·경로와 무관하게 `400 Request Blocked`
+  (`KrexBadRequestError`)로 막는다. 같은 IP에서 이 UA는 통과한다(n150 실측).
+- `session=`으로 주입한 session은 바꾸지 않는다 — 헤더를 포함한 호출자 설정이 그대로 쓰인다.
+
 ## 2026-09-19 — 실시간 소통 조회 복구
 
 - 인자 없는 `traffic.flow_all()`이 한 응답의 모든 행을 `Page[TrafficFlow]`로 반환한다.

@@ -640,7 +640,9 @@ HTTPX 리다이렉트는 계측한다. Digest/custom Auth처럼 내부 추가 �
 transport 내부의 연결 재시도는 라이브러리 밖의 동작이다.
 
 내부 HTTP 세션은 첫 요청에서 생성하고 클라이언트 종료 시 닫는다. session에 주입한
-비동기 세션은 호출자가 닫는다. 동기 get을 제공하는 세션은 거부한다.
+비동기 세션은 호출자가 닫는다.
+내부 세션은 `User-Agent: python-krex-api/<version>`을 보낸다(data.ex.co.kr WAF가 2026-10-08부터
+`python-httpx/*` 같은 라이브러리 기본 UA를 `400 Request Blocked`로 막는다). 주입한 세션은 그 헤더를 그대로 쓴다. 동기 get을 제공하는 세션은 거부한다.
 디버그 기록은 ContextVar로 작업마다 격리하며 성공·실패·취소 뒤 복구한다.
 원문으로 오류 분류·모델 파싱을 마친 후 예외와 진단 출력의 키를 마스킹한다.
 

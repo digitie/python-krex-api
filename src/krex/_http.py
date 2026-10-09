@@ -10,6 +10,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
+from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 from urllib.parse import quote, quote_plus
 
@@ -33,6 +34,21 @@ from .exceptions import (
 )
 
 _MAX_BACKOFF_SECONDS = 30.0
+
+
+def _default_user_agent() -> str:
+    try:
+        return f"python-krex-api/{version('python-krex-api')}"
+    except PackageNotFoundError:  # 설치되지 않은 소스 트리에서 import한 경우
+        return "python-krex-api"
+
+
+DEFAULT_USER_AGENT = _default_user_agent()
+"""라이브러리가 직접 만드는 session의 User-Agent.
+
+data.ex.co.kr WAF가 2026-10-08부터 흔한 HTTP 라이브러리 기본값(`python-httpx/*`, `curl/*`)을
+`400 Request Blocked`로 막는다. 호출자가 넘긴 session은 그 설정(헤더 포함)을 그대로 쓴다.
+"""
 _KEY_QUERY = re.compile(r"(?i)([?&](?:key|servicekey)=)[^&\s\"<>]+")
 
 
@@ -165,7 +181,11 @@ class KrexHttp:
         self.last_request = {"method": "GET", "url": url, "query": _mask_params(params)}
         self.last_response = None
         if self.session is None:
-            self.session = httpx.AsyncClient(timeout=self.timeout, follow_redirects=True)
+            self.session = httpx.AsyncClient(
+                timeout=self.timeout,
+                follow_redirects=True,
+                headers={"User-Agent": DEFAULT_USER_AGENT},
+            )
         secrets = (self.ex_api_key, self.go_api_key)
         try:
             for attempt in range(attempts):

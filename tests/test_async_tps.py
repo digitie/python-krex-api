@@ -248,3 +248,51 @@ async def test_auth_changed_while_waiting_is_rejected_before_send() -> None:
         with pytest.raises(TypeError, match="authentication"):
             await task
     assert not sent
+
+
+async def test_owned_session_sends_library_user_agent(monkeypatch: pytest.MonkeyPatch) -> None:
+    """라이브러리가 만든 session은 `python-krex-api/<version>`으로 자신을 밝힌다.
+
+    data.ex.co.kr WAF는 2026-10-08부터 `python-httpx/*` 기본 UA를 400 Request Blocked로 막는다.
+    """
+    from importlib.metadata import version
+
+    from krex._http import DEFAULT_USER_AGENT
+
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        user_agent = request.headers.get("user-agent", "")
+        seen.append(user_agent)
+        if user_agent.startswith("python-httpx/"):
+            return httpx.Response(400, text="<H1>Request Blocked</H1>")
+        return httpx.Response(200, json=payload())
+
+    factory = httpx.AsyncClient
+
+    class OwnedClient(factory):
+        def __init__(self, **kwargs: Any) -> None:
+            super().__init__(transport=httpx.MockTransport(handler), **kwargs)
+
+    monkeypatch.setattr(httpx, "AsyncClient", OwnedClient)
+    async with KrexClient(ex_api_key="fake-key", max_retries=0) as client:
+        await client.traffic.by_route(time_unit="1", route_no="0010")
+    assert DEFAULT_USER_AGENT == f"python-krex-api/{version('python-krex-api')}"
+    assert seen == [DEFAULT_USER_AGENT]
+
+
+async def test_caller_session_user_agent_is_kept() -> None:
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.headers.get("user-agent", ""))
+        return httpx.Response(200, json=payload())
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler), headers={"User-Agent": "caller-app/2.0"}
+    ) as session:
+        client = KrexClient(ex_api_key="fake-key", session=session)
+        await client.traffic.by_route(time_unit="1", route_no="0010")
+        await client.aclose()
+        assert not session.is_closed
+    assert seen == ["caller-app/2.0"]
