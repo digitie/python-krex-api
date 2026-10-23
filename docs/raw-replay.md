@@ -8,8 +8,10 @@ weather = parse_rest_area_weather(saved_row)
 
 `row`는 휴게소 기상 provider 단일 행인 `dict[str, Any]`다. 원문 raw와 선행0 코드,
 sdate/stdHour의 KST 시각, -99 이하 결측·좌표 변환을 기존대로 유지한다.
-잘못된 필수값·날짜/시각은 기존 행 파서처럼ValueError를 낼 수 있다. HTTP 메서드는
-이 행 오류를 기존 페이지 경계에서KrexParseError로 포장하며 그 동작도 유지한다.
+잘못된 필수값·날짜/시각은 로컬 행 재해석에서 기존처럼 `ValueError`를 낼 수 있다.
+HTTP 페이지 파서는 일부 행이 실패해도 정상 행이 하나 이상 있으면 실패 행을 제외한
+`Page`를 반환한다. 모든 행이 실패하고 첫 행 오류가 있을 때만 `KrexParseError`로
+포장한다. 빈 페이지는 기존처럼 빈 `Page`다. 이 동작은 공개 함수 추가 전후에 동일하다.
 
 ## 원문 재해석의 신뢰 경계
 
