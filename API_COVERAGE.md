@@ -119,3 +119,7 @@ transport 내부의 연결 재시도는 라이브러리 밖의 동작이다.
 
 전국휴게소 표준데이터는 활용 신청 후 HTTP 200 및 정상 코드 `00`을 반환했다.
 최상위 `header`/`body` 응답과 기존 `response` 감싸기 응답을 모두 정규화한다.
+
+## 로컬 재해석
+
+`parse_rest_area_weather`는휴게소 기상의 기존 행 파서를 공개한다. 새 endpoint/live 검증을 추가하지 않는다. [신뢰 경계](docs/raw-replay.md).

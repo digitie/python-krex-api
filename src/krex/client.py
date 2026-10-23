@@ -502,7 +502,7 @@ class RestareaService:
             return await self._client._page_ex(
                 "/openapi/restinfo/restWeatherList",
                 {"sdate": _format_sdate(sdate), "stdHour": _format_hour(std_hour)},
-                _rest_area_weather,
+                parse_rest_area_weather,
             )
         except KrexError as exc:
             self._client._http.protect_error(exc)
@@ -976,7 +976,12 @@ def _rest_area_fuel_price(row: dict[str, Any]) -> RestAreaFuelPrice:
     )
 
 
-def _rest_area_weather(row: dict[str, Any]) -> RestAreaWeather:
+def parse_rest_area_weather(row: dict[str, Any]) -> RestAreaWeather:
+    """휴게소 기상 원문 한 행을 HTTP client와 동일한 DTO로 다시 해석한다.
+
+    응답 code/list/페이지 완결성은 이 행만으로 검증하지 않는다. 원래 raw,
+    선행 0 코드, KST 시각과 결측 처리 규칙을 유지하며 네트워크를 호출하지 않는다.
+    """
     x = _weather_float_or_none(_get(row, "xValue", "x"))
     y = _weather_float_or_none(_get(row, "yValue", "y"))
     lon, lat = _wgs84_from_lon_lat(x, y)

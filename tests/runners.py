@@ -4,12 +4,12 @@ from collections.abc import Callable
 from typing import Any
 
 from krex._http import _normalize_ex_payload
-from krex.client import _parse_page, _parse_traffic_flow_page, _rest_area_weather
+from krex.client import _parse_page, _parse_traffic_flow_page, parse_rest_area_weather
 
 
 def _parse_restarea_weather(raw: dict[str, Any]) -> Any:
     payload = _normalize_ex_payload(raw, params={})
-    return _parse_page(payload, _rest_area_weather)
+    return _parse_page(payload, parse_rest_area_weather)
 
 
 def _identity(value: Any) -> Any:

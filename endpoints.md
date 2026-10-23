@@ -724,3 +724,8 @@ transport 내부의 연결 재시도는 라이브러리 밖의 동작이다.
 
 공공데이터포털 응답은 `response.header`/`response.body`와 최상위 `header`/`body`
 두 형태를 지원한다. 상태 코드 판정, 항목 정규화, 페이지 정보와 원문 보존은 동일하다.
+
+## 로컬 원문 재해석
+
+`parse_rest_area_weather`을 패키지 root에서 제공한다. 네트워크 endpoint를 추가하지 않으며
+[공개 입력·DTO·예외와 신뢰 경계](docs/raw-replay.md)를 따른다.

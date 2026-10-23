@@ -2,7 +2,7 @@
 
 from ._ratelimit import AsyncTokenBucket
 from .catalog import api_catalog, api_catalog_item, get_api_catalog, get_api_catalog_item
-from .client import KrexClient
+from .client import KrexClient, parse_rest_area_weather
 from .codes import (
     CarType,
     CongestionLevel,
@@ -55,6 +55,7 @@ __version__ = "0.1.0"
 PROVIDER_NAME = "python-krex-api"
 
 __all__ = [
+    "parse_rest_area_weather",
     "AsyncTokenBucket",
     "PROVIDER_NAME",
     "ApiCatalogItem",
