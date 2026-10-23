@@ -648,3 +648,8 @@ transport 내부의 연결 재시도는 라이브러리 밖의 동작이다.
 
 
 사용 예제: [docs/async-tps.md](docs/async-tps.md).
+
+## 저장 원문의 오프라인 재해석
+
+`parse_rest_area_weather`은 기존 HTTP client와 같은 파서의 공개 함수다.
+[사용법과 단일 행/장소 신뢰 경계](docs/raw-replay.md)를 따른다.
