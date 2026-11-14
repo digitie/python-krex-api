@@ -813,7 +813,12 @@ def _parse_traffic_flow_page(payload: NormalizedPayload) -> Page[TrafficFlow]:
         raise KrexParseError("traffic flow count must match the complete list", response=raw)
     page = _parse_page(payload, _traffic_flow)
     if len(page.items) != len(payload.items):
-        raise KrexParseError("traffic flow response contains invalid records", response=raw)
+        raise KrexParseError(
+            "traffic flow response contains invalid records "
+            f"(received_rows={len(payload.items)}, parsed_rows={len(page.items)}, "
+            f"invalid_rows={len(payload.items) - len(page.items)})",
+            code="TRAFFIC_FLOW_INVALID_RECORDS", response=raw,
+        )
     return page
 
 
@@ -824,7 +829,9 @@ def _traffic_flow(row: dict[str, Any]) -> TrafficFlow:
     )
     if "updownTypeCode" in row:
         # 0405의 S/E는 South/East가 아니라 기점/종점 방향이다.
-        direction = FlowDirection(str(row["updownTypeCode"]).strip())
+        # 제공기관의 공백/NULL은 방향 결측이며 미지의 비어 있지 않은 코드는 거부한다.
+        flow_direction = strip_or_none(row["updownTypeCode"])
+        direction = FlowDirection(flow_direction) if flow_direction is not None else None
     congestion_level = _enum_or_none(
         CongestionLevel, _get(row, "congestionLevel", "conzoneGrade")
     )
