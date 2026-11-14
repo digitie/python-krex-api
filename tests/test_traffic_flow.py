@@ -61,6 +61,39 @@ async def test_official_grades_and_missing_speed(grade: str, expected: Any) -> N
     assert item.raw["speed"] == "-1"
 
 
+@pytest.mark.parametrize("missing_direction", [None, "", " ", "\t"])
+@pytest.mark.parametrize("method", ["flow", "flow_all"])
+async def test_missing_observed_direction_preserves_complete_snapshot(
+    missing_direction: str | None, method: str,
+) -> None:
+    # 2026-11-15 실제 결측 행. 유효한 다른 행과 원문 count를 모두 보존한다.
+    raw = sample()
+    raw["list"][0].update(
+        conzoneId="6000CZS050", vdsId="6000VDS01230", updownTypeCode=missing_direction,
+        grade="0", stdDate="20261115", stdHour="0729", speed="-1",
+    )
+    async with KrexClient(ex_api_key="test", session=FakeSession(raw)) as client:
+        page = await getattr(client.traffic, method)()
+    assert page.total_count == len(page.items) == raw["count"] == 2
+    assert page.raw == raw
+    assert page.items[0].direction is None
+    assert page.items[0].speed is None
+    assert page.items[0].raw["updownTypeCode"] == missing_direction
+    assert page.items[1].direction is FlowDirection.START
+
+
+async def test_invalid_nonempty_direction_keeps_failure_and_safe_counts() -> None:
+    raw = sample()
+    raw["list"][0]["updownTypeCode"] = "unknown-private-value"
+    async with KrexClient(ex_api_key="test", session=FakeSession(raw)) as client:
+        with pytest.raises(KrexParseError) as caught:
+            await client.traffic.flow_all()
+    assert caught.value.code == "TRAFFIC_FLOW_INVALID_RECORDS"
+    assert "received_rows=2, parsed_rows=1, invalid_rows=1" in str(caught.value)
+    assert "unknown-private-value" not in str(caught.value)
+    assert caught.value.response == raw
+
+
 @pytest.mark.parametrize("params, expected", [
     ({"route_no": "0010"}, 2),
     ({"route_no": "1"}, 0),

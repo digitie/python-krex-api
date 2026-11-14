@@ -1,5 +1,8 @@
 # python-krex-api
 
+실시간 소통의 방향 코드가 공백/NULL이면 `direction=None`이며 원문은 그대로 유지됩니다.
+미지의 비어 있지 않은 코드와 부분 파싱은 계속 오류로 처리하고, 불량 행 수를 안전하게 제공합니다.
+
 ![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)
 ![GPL-3.0-or-later 라이선스](https://img.shields.io/badge/License-GPL--3.0--or--later-blue.svg)
 ![Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)
