@@ -1,5 +1,15 @@
 # 변경 기록
 
+## 2026-11-24 — 실시간 소통 부분 파싱의 유효 행 제공
+
+- 0405 `traffic.flow_all()`/`flow()`의 일부 행 파싱 실패는 계속 `KrexParseError`
+  (`code=TRAFFIC_FLOW_INVALID_RECORDS`)로 실패한다. 예외 타입만 그 하위 클래스
+  `KrexPartialParseError`로 좁혔다 — 기존 `except KrexParseError`는 그대로 동작한다.
+- 무효 행을 격리하기로 한 소비자는 `KrexPartialParseError.items`(파싱된 행, 원문 순서)와
+  `received_rows`/`parsed_rows`/`invalid_rows`를 읽는다. 무효 행 값은 싣지 않는다.
+- 결정적 오류다. 같은 응답을 다시 요청할 근거로 쓰지 않는다. 목록 누락·건수 불일치 같은
+  구조 오류는 하위 클래스가 아닌 `KrexParseError` 그대로다.
+
 ## 2026-10-23 — 원문 재해석 API 공개
 
 기존 파서를 `parse_rest_area_weather`로 공개하고 HTTP client도 같은 함수를 사용한다.

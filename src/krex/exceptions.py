@@ -61,6 +61,31 @@ class KrexParseError(KrexError):
     """응답을 예상한 형태로 파싱할 수 없을 때 발생합니다."""
 
 
+class KrexPartialParseError(KrexParseError):
+    """완결 목록 일부 행만 파싱할 수 없을 때 발생합니다(기본 계약은 여전히 실패).
+
+    `KrexParseError`의 하위 클래스라 기존 소비자의 `except KrexParseError`는 그대로다.
+    무효 행을 격리해 유효 행만 쓰기로 한 소비자만 이 예외를 잡아 `items`(파싱된 행,
+    원문 순서)와 `received_rows`/`parsed_rows`/`invalid_rows`를 읽는다. 무효 행의 값은
+    싣지 않는다(원문 전체는 기존처럼 `response`). 같은 응답을 다시 요청해도 결과가
+    바뀌지 않는 결정적 오류이므로 재호출 근거로 쓰지 않는다.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        items: tuple[Any, ...],
+        received_rows: int,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(message, **kwargs)
+        self.items = items
+        self.received_rows = received_rows
+        self.parsed_rows = len(items)
+        self.invalid_rows = received_rows - len(items)
+
+
 class KrexNetworkError(KrexError):
     """네트워크 계층 장애일 때 발생합니다."""
 

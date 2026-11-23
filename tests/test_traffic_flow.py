@@ -16,6 +16,7 @@ from krex import (
     KrexInvalidParameterError,
     KrexNotFoundError,
     KrexParseError,
+    KrexPartialParseError,
     TrafficFlow,
 )
 from tests.test_client import FakeSession
@@ -92,6 +93,31 @@ async def test_invalid_nonempty_direction_keeps_failure_and_safe_counts() -> Non
     assert "received_rows=2, parsed_rows=1, invalid_rows=1" in str(caught.value)
     assert "unknown-private-value" not in str(caught.value)
     assert caught.value.response == raw
+
+
+@pytest.mark.parametrize("method", ["flow", "flow_all"])
+async def test_invalid_records_expose_parsed_rows_to_opt_in_consumers(method: str) -> None:
+    # 기본 계약(KrexParseError)은 그대로고, 하위 예외가 유효 행과 건수를 싣는다.
+    raw = sample()
+    raw["list"][0]["updownTypeCode"] = "unknown-private-value"
+    async with KrexClient(ex_api_key="test", session=FakeSession(raw)) as client:
+        with pytest.raises(KrexPartialParseError) as caught:
+            await getattr(client.traffic, method)()
+    error = caught.value
+    assert isinstance(error, KrexParseError)
+    assert (error.received_rows, error.parsed_rows, error.invalid_rows) == (2, 1, 1)
+    assert [item.conzone_id for item in error.items] == [raw["list"][1]["conzoneId"]]
+    assert all(isinstance(item, TrafficFlow) for item in error.items)
+    assert "unknown-private-value" not in str(error)
+
+
+async def test_structural_flow_errors_are_not_partial() -> None:
+    raw = sample()
+    raw["count"] = 3
+    async with KrexClient(ex_api_key="test", session=FakeSession(raw)) as client:
+        with pytest.raises(KrexParseError) as caught:
+            await client.traffic.flow_all()
+    assert not isinstance(caught.value, KrexPartialParseError)
 
 
 @pytest.mark.parametrize("params, expected", [
