@@ -35,7 +35,13 @@ from .codes import (
     coerce_code,
 )
 from .debug import DebugRun, exception_to_debug_error, jsonable, safe_debug_value
-from .exceptions import KrexError, KrexInvalidParameterError, KrexNotFoundError, KrexParseError
+from .exceptions import (
+    KrexError,
+    KrexInvalidParameterError,
+    KrexNotFoundError,
+    KrexParseError,
+    KrexPartialParseError,
+)
 from .models import (
     ApiCatalogItem,
     FoodPrice,
@@ -813,11 +819,13 @@ def _parse_traffic_flow_page(payload: NormalizedPayload) -> Page[TrafficFlow]:
         raise KrexParseError("traffic flow count must match the complete list", response=raw)
     page = _parse_page(payload, _traffic_flow)
     if len(page.items) != len(payload.items):
-        raise KrexParseError(
+        # 기본은 실패다. 무효 행을 격리하기로 한 소비자만 하위 예외의 유효 행·건수를 쓴다.
+        raise KrexPartialParseError(
             "traffic flow response contains invalid records "
             f"(received_rows={len(payload.items)}, parsed_rows={len(page.items)}, "
             f"invalid_rows={len(payload.items) - len(page.items)})",
             code="TRAFFIC_FLOW_INVALID_RECORDS", response=raw,
+            items=page.items, received_rows=len(payload.items),
         )
     return page
 
