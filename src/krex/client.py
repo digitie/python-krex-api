@@ -65,6 +65,10 @@ from .models import (
 
 T = TypeVar("T")
 E = TypeVar("E", bound=KrexCode)
+
+#: 0502·0124는 `numOfRows`를 99로 자른다(2026-11-27 실측). 더 큰 값을 받으면 호출자가
+#: `total_count / n`으로 페이지 수를 셀 때 행을 놓치므로 거부한다.
+EX_MAX_ROWS = 99
 KST = timezone(timedelta(hours=9), "KST")
 _MAX_LATEST_WEATHER_LOOKBACK_HOURS = 240
 
@@ -559,11 +563,15 @@ class RestareaService:
         std_rest_code: str | None = None,
         rest_area_name: str | None = None,
         route_code: str | None = None,
-        num_of_rows: int = 99,
+        num_of_rows: int = EX_MAX_ROWS,
         page_no: int = 1,
     ) -> Page[RestAreaFoodMenu]:
-        """0502 휴게소 푸드메뉴현황. 서버는 한 페이지 99행까지만 준다(`numOfRows` 상한)."""
+        """0502 휴게소 푸드메뉴현황.
+
+        서버는 한 페이지 99행까지만 준다 — 99를 넘으면 거부한다.
+        """
         try:
+            _require_max_rows(num_of_rows)
             return await self._client._page_ex(
                 "/openapi/restinfo/restBestfoodList",
                 {
@@ -582,7 +590,7 @@ class RestareaService:
     async def service_area_codes(
         self,
         *,
-        service_area_code: str | None = None,
+        std_rest_code: str | None = None,
         route_code: str | None = None,
     ) -> Page[RestAreaCode]:
         """0615 휴게소코드정보(하이쉼마루).
@@ -592,7 +600,7 @@ class RestareaService:
         try:
             return await self._client._page_ex(
                 "/openapi/restinfo/hiwaySvarInfoList",
-                {"svarCd": service_area_code, "routeCd": route_code},
+                {"svarCd": std_rest_code, "routeCd": route_code},
                 _rest_area_code,
             )
         except KrexError as exc:
@@ -603,11 +611,15 @@ class RestareaService:
         self,
         *,
         route_no: str | None = None,
-        num_of_rows: int = 99,
+        num_of_rows: int = EX_MAX_ROWS,
         page_no: int = 1,
     ) -> Page[RestAreaLocation]:
-        """0124 휴게소 기준정보(경위도). 휴게소만 있고 주유소는 없다."""
+        """0124 휴게소 기준정보(경위도). 휴게소만 있다.
+
+        서버 한 페이지 상한이 99행이라 넘으면 거부한다.
+        """
         try:
+            _require_max_rows(num_of_rows)
             return await self._client._page_ex(
                 "/openapi/locationinfo/locationinfoRest",
                 {"routeNo": route_no, "numOfRows": num_of_rows, "pageNo": page_no},
@@ -1100,43 +1112,46 @@ def _rest_area_food_menu(row: dict[str, Any]) -> RestAreaFoodMenu:
         rest_code=strip_or_none(_get(row, "restCd")),
         seq=str(_required(row, "seq")).strip(),
         food_name=str(_required(row, "foodNm")).strip(),
-        price=_int_or_none(_get(row, "foodCost")),
+        price=to_int_or_none(_get(row, "foodCost")),
         description=strip_or_none(_get(row, "etc")),
         ingredients=strip_or_none(_get(row, "foodMaterial")),
-        is_recommended=_yn_or_none(_get(row, "recommendyn")),
-        is_best=_yn_or_none(_get(row, "bestfoodyn")),
-        is_premium=_yn_or_none(_get(row, "premiumyn")),
-        season=_code_or_none(MenuSeason, _get(row, "seasonMenu"), upper=True),
-        app_listed=_yn_or_none(_get(row, "app")),
+        is_recommended=to_bool_yn(_get(row, "recommendyn")),
+        is_best=to_bool_yn(_get(row, "bestfoodyn")),
+        is_premium=to_bool_yn(_get(row, "premiumyn")),
+        season=_enum_or_none(MenuSeason, _upper_or_none(_get(row, "seasonMenu"))),
+        app_listed=to_bool_yn(_get(row, "app")),
         route_code=strip_or_none(_get(row, "routeCd")),
         route_name=strip_or_none(_get(row, "routeNm")),
         address=strip_or_none(_get(row, "svarAddr")),
-        menu_updated_on=_date_or_none(_get(row, "lastDtime")),
-        source_updated_on=_date_or_none(_get(row, "lsttmAltrDttm")),
+        menu_updated_on=to_date_or_none(_get(row, "lastDtime")),
+        source_updated_on=to_date_or_none(_get(row, "lsttmAltrDttm")),
         raw=row,
     )
 
 
 def _rest_area_code(row: dict[str, Any]) -> RestAreaCode:
     return RestAreaCode(
-        service_area_code=str(_required(row, "svarCd")).strip(),
+        std_rest_code=str(_required(row, "svarCd")).strip(),
         name=str(_required(row, "svarNm")).strip(),
-        facility_class=_code_or_none(ServiceAreaClass, _get(row, "svarGsstClssCd")),
-        direction=_code_or_none(Direction, _get(row, "gudClssCd")),
+        facility_class=_enum_or_none(ServiceAreaClass, _get(row, "svarGsstClssCd")),
+        direction=_enum_or_none(Direction, _get(row, "gudClssCd")),
         route_code=strip_or_none(_get(row, "routeCd")),
         route_name=strip_or_none(_get(row, "routeNm")),
-        facility_code=strip_or_none(_get(row, "bsopAdtnlFcltCd")),
+        service_area_code=strip_or_none(_get(row, "bsopAdtnlFcltCd")),
         address=strip_or_none(_get(row, "svarAddr")),
+        postal_code=strip_or_none(_get(row, "pstnoCd")),
         phone_number=strip_or_none(_get(row, "rprsTelNo")),
-        headquarters_name=strip_or_none(_get(row, "hdqrNm")),
-        branch_name=strip_or_none(_get(row, "mtnofNm")),
+        head_office_code=strip_or_none(_get(row, "hdqrCd")),
+        head_office_name=strip_or_none(_get(row, "hdqrNm")),
+        branch_office_code=strip_or_none(_get(row, "mtnofCd")),
+        branch_office_name=strip_or_none(_get(row, "mtnofNm")),
         raw=row,
     )
 
 
 def _rest_area_location(row: dict[str, Any]) -> RestAreaLocation:
     lon, lat = _wgs84_from_lon_lat(
-        _weather_float_or_none(_get(row, "xValue")), _weather_float_or_none(_get(row, "yValue"))
+        to_float_or_none(_get(row, "xValue")), to_float_or_none(_get(row, "yValue"))
     )
     return RestAreaLocation(
         unit_code=str(_required(row, "unitCode")).strip(),
@@ -1151,38 +1166,9 @@ def _rest_area_location(row: dict[str, Any]) -> RestAreaLocation:
     )
 
 
-def _code_or_none(enum_type: type[E], value: Any, *, upper: bool = False) -> E | None:
-    """모르는 코드값은 None으로 둔다(행을 버리지 않는다). 원문은 `raw`에 남는다."""
-    text = strip_or_none(value)
-    if text is None:
-        return None
-    try:
-        return enum_type(text.upper() if upper else text)
-    except ValueError:
-        return None
-
-
-def _yn_or_none(value: Any) -> bool | None:
-    try:
-        return to_bool_yn(value)
-    except ValueError:
-        return None
-
-
-def _date_or_none(value: Any) -> date | None:
-    try:
-        text = strip_or_none(value)
-        return to_date_or_none(text[:10] if text is not None else None)
-    except ValueError:
-        return None
-
-
-def _int_or_none(value: Any) -> int | None:
-    """가격처럼 표시용 정수. 읽을 수 없는 값은 None으로 두고 행은 살린다(원문은 `raw`)."""
-    try:
-        return to_int_or_none(value)
-    except ValueError:
-        return None
+def _require_max_rows(num_of_rows: int) -> None:
+    if not 1 <= num_of_rows <= EX_MAX_ROWS:
+        raise KrexInvalidParameterError(f"num_of_rows must be between 1 and {EX_MAX_ROWS}")
 
 
 def _clean(params: dict[str, Any]) -> dict[str, Any]:
@@ -1240,6 +1226,11 @@ def _optional_code(enum_type: type[E], value: E | str | None, field: str) -> str
     if value is None:
         return None
     return coerce_code(enum_type, value, field)
+
+
+def _upper_or_none(value: Any) -> str | None:
+    text = strip_or_none(value)
+    return text.upper() if text is not None else None
 
 
 def _enum_or_none(enum_type: type[E], value: Any) -> E | None:

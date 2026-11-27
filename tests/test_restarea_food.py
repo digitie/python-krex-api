@@ -10,7 +10,16 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from krex import Direction, KrexClient, MenuSeason, ServiceAreaClass
+import pytest
+
+from krex import (
+    Direction,
+    KrexClient,
+    KrexInvalidParameterError,
+    KrexParseError,
+    MenuSeason,
+    ServiceAreaClass,
+)
 from tests.test_client import FakeSession, ex_payload
 
 FIXTURES = Path(__file__).parent / "data" / "restarea-food"
@@ -47,34 +56,45 @@ async def test_food_menus_calls_0502_and_parses_real_rows() -> None:
     assert page.items[2].season is MenuSeason.WINTER
 
 
-async def test_food_menu_keeps_row_when_optional_values_are_unreadable() -> None:
-    row = {
-        "stdRestCd": "000003",
-        "seq": "1",
-        "foodNm": " 시가 메뉴 ",
-        "foodCost": "시가",
-        "seasonMenu": "Q",
-        "bestfoodyn": "?",
-        "lastDtime": "not-a-date",
-    }
-    session = FakeSession(ex_payload([row]))
+@pytest.mark.parametrize("change", [
+    {"seasonMenu": "Q"},
+    {"bestfoodyn": "?"},
+    {"foodCost": "시가"},
+    {"lastDtime": "not-a-date"},
+    {"foodNm": ""},
+])
+async def test_food_menu_rejects_unknown_values_like_other_parsers(change: dict[str, str]) -> None:
+    """모르는 코드·값은 결측으로 바꾸지 않는다(저장소 관례).
+
+    한 행뿐이면 파싱 오류, 섞여 있으면 그 행만 빠진다.
+    """
+    good = _fixture("0502-restBestfoodList.json")["list"][0]
+    bad = {**good, "seq": "999999", **change}
+    session = FakeSession(ex_payload([bad]))
     client = KrexClient(ex_api_key="ex-key", retry_backoff=0, session=session)
+    with pytest.raises(KrexParseError):
+        await client.restarea.food_menus()
 
-    menu = (await client.restarea.food_menus()).items[0]
+    session = FakeSession(ex_payload([good, bad]))
+    client = KrexClient(ex_api_key="ex-key", retry_backoff=0, session=session)
+    page = await client.restarea.food_menus()
+    assert [menu.seq for menu in page.items] == [good["seq"]]
 
-    assert menu.food_name == "시가 메뉴"
-    assert menu.price is None
-    assert menu.season is None
-    assert menu.is_best is None
-    assert menu.menu_updated_on is None
-    assert menu.raw["foodCost"] == "시가"
+
+@pytest.mark.parametrize("call", ["food_menus", "locations"])
+async def test_num_of_rows_above_the_server_cap_is_rejected(call: str) -> None:
+    session = FakeSession(ex_payload([]))
+    client = KrexClient(ex_api_key="ex-key", retry_backoff=0, session=session)
+    with pytest.raises(KrexInvalidParameterError):
+        await getattr(client.restarea, call)(num_of_rows=100)
+    assert session.calls == []
 
 
 async def test_service_area_codes_calls_0615_and_parses_class_and_direction() -> None:
     session = FakeSession(_fixture("0615-hiwaySvarInfoList.json"))
     client = KrexClient(ex_api_key="ex-key", retry_backoff=0, session=session)
 
-    page = await client.restarea.service_area_codes(route_code="7001")
+    page = await client.restarea.service_area_codes(std_rest_code=None, route_code="7001")
 
     assert session.last_url.endswith("/openapi/restinfo/hiwaySvarInfoList")
     assert session.last_params["routeCd"] == "7001"
@@ -82,8 +102,11 @@ async def test_service_area_codes_calls_0615_and_parses_class_and_direction() ->
     station, rest = page.items[0], page.items[1]
     assert station.name == "김제(새만금)주유소"
     assert station.facility_class is ServiceAreaClass.GAS_STATION
-    assert station.facility_code == "B00249"
-    assert rest.service_area_code == "000614"
+    assert station.service_area_code == "B00249"
+    assert station.std_rest_code == "000616"
+    assert rest.std_rest_code == "000614"
+    assert rest.service_area_code == "A00320"
+    assert rest.head_office_code == "800000" and rest.branch_office_code == "810100"
     assert rest.facility_class is ServiceAreaClass.REST_AREA
     assert rest.direction is Direction.DOWN
     assert rest.direction.label == "하행"
@@ -107,7 +130,7 @@ async def test_locations_calls_0124_and_keeps_leading_zero_codes() -> None:
     assert first.lon == 127.042514 and first.lat == 37.459939
 
 
-async def test_location_out_of_korea_coordinate_becomes_none() -> None:
+async def test_location_outside_korea_becomes_none() -> None:
     row = {"unitCode": "009", "unitName": "x", "xValue": "0", "yValue": "0"}
     session = FakeSession(ex_payload([row]))
     client = KrexClient(ex_api_key="ex-key", retry_backoff=0, session=session)

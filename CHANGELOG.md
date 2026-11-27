@@ -7,10 +7,12 @@
 - `restarea.food_menus()` → `Page[RestAreaFoodMenu]`: 0502 `/openapi/restinfo/restBestfoodList`.
   메뉴명·가격·대표(`is_best`)/추천/프리미엄·계절(`MenuSeason`)·메뉴 수정일. 한 페이지 99행 상한.
 - `restarea.service_area_codes()` → `Page[RestAreaCode]`: 0615 `/openapi/restinfo/hiwaySvarInfoList`.
-  표준 코드·노선·상하행(`Direction`)·휴게소/주유소(`ServiceAreaClass`). 서버가 페이지 인자를 무시하고 전체를 준다.
+  표준 코드(`std_rest_code` = `svarCd`)·`A…`/`B…` 코드(`service_area_code`, 다른 모델과 같은 이름)·노선·
+  상하행(`Direction`)·휴게소/주유소(`ServiceAreaClass`)·본부/지사 코드. 서버가 페이지 인자를 무시하고 전체를 준다.
 - `restarea.locations()` → `Page[RestAreaLocation]`: 0124 `/openapi/locationinfo/locationinfoRest`.
-- 세 응답 모두 2026-11-27 실응답 표본(`tests/data/restarea-food/`)으로 오프라인 검증한다. 선택 값(가격·코드·Y/N·날짜)을
-  읽지 못해도 행은 버리지 않고 None으로 둔다 — 전체 행 수를 `count`와 대조하는 소비자가 한 행 때문에 실패하지 않게 한다.
+- 0502·0124는 서버가 한 페이지를 99행으로 자른다. `num_of_rows`가 99를 넘으면 `KrexInvalidParameterError`다.
+- 파싱은 다른 파서와 같이 엄격하다. 모르는 코드·값이 있는 행은 빠지고(전부면 `KrexParseError`) None으로 바꾸지 않는다.
+- 세 응답 모두 2026-11-27 실응답 표본(`tests/data/restarea-food/`)으로 오프라인 검증하고, live 시험을 하나씩 둔다.
 
 ## 2026-11-24 — 실시간 소통 부분 파싱의 유효 행 제공
 

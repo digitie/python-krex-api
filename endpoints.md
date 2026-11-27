@@ -550,7 +550,7 @@ apiId 0502. 휴게소별 메뉴명·가격·대표/추천/프리미엄·계절 �
 - **포털**: `data.ex.co.kr`
 - **경로**: `/openapi/restinfo/restBestfoodList`
 - **메서드**: `client.restarea.food_menus()` → `Page[RestAreaFoodMenu]`
-- **페이지**: 서버가 `numOfRows`를 99로 자른다. 기본값도 99다.
+- **페이지**: 서버가 `numOfRows`를 99로 자른다. 기본값도 99이고, 99를 넘기면 `KrexInvalidParameterError`다.
 
 **파라미터**
 
@@ -567,9 +567,9 @@ apiId 0502. 휴게소별 메뉴명·가격·대표/추천/프리미엄·계절 �
 | `stdRestCd` | `std_rest_code` | `str` | 휴게소 표준 코드. 0615 `svarCd`·0124 `stdRestCd`와 같다 |
 | `stdRestNm` | `rest_area_name` | `str \| None` | 휴게소명 (예: `서울만남(부산)휴게소`) |
 | `restCd` | `rest_code` | `str \| None` | 매장 코드 |
-| `seq` | `seq` | `str` | 메뉴 순번(휴게소 안에서 고유) |
+| `seq` | `seq` | `str` | 메뉴 일련번호(2026-11-27 실측 7,291행에서 전역 고유) |
 | `foodNm` | `food_name` | `str` | 메뉴명 |
-| `foodCost` | `price` | `int \| None` | 가격(원). 읽을 수 없으면 None |
+| `foodCost` | `price` | `int \| None` | 가격(원) |
 | `etc` | `description` | `str \| None` | 설명 |
 | `foodMaterial` | `ingredients` | `str \| None` | 재료 |
 | `recommendyn` | `is_recommended` | `bool \| None` | 추천 |
@@ -582,7 +582,7 @@ apiId 0502. 휴게소별 메뉴명·가격·대표/추천/프리미엄·계절 �
 | `lastDtime` | `menu_updated_on` | `date \| None` | 메뉴 수정일 |
 | `lsttmAltrDttm` | `source_updated_on` | `date \| None` | 원천 동기화일(조회 당일로 온다) |
 
-모르는 코드값·Y/N이 아닌 값·읽을 수 없는 가격과 날짜는 None으로 두고 행은 살린다. 원문은 `raw`에 남는다.
+다른 파서와 같이 엄격하다. 모르는 코드값·Y/N이 아닌 값·읽을 수 없는 가격과 날짜가 있는 행은 파싱에서 빠지고, 페이지의 모든 행이 그러면 `KrexParseError`다. 전체 행 수를 `count`와 대조하는 소비자는 이 경우 실패로 끝난다(계약 변화를 조용히 묻지 않는다).
 
 ---
 
@@ -597,15 +597,17 @@ apiId 0615. 휴게소·주유소 표준 코드, 노선, 상하행. 좌표는 없
 
 | 원본 | 모델 필드 | 설명 |
 |------|-----------|------|
-| `svarCd` | `service_area_code` | 표준 코드(6자리). 0502 `stdRestCd`와 같다 |
+| `svarCd` | `std_rest_code` | 표준 코드(6자리). 0502 `stdRestCd`·0124 `stdRestCd`와 같다 |
 | `svarNm` | `name` | 이름 (예: `김제(새만금)휴게소`, `김제(새만금)주유소`) |
-| `svarGsstClssCd` | `facility_class` | `ServiceAreaClass`: `0` 휴게소 / `1` 주유소 |
+| `svarGsstClssCd` | `facility_class` | `ServiceAreaClass`: `0` 휴게소 / `1` 주유소. 휴게소 분류에 졸음쉼터·주차장·쉼터가, 주유소 분류에 충전소·시험용 행이 섞여 있다 |
 | `gudClssCd` | `direction` | `Direction`: `0` 상행 / `1` 하행 |
 | `routeCd` / `routeNm` | `route_code` / `route_name` | 노선 (`routeNm`은 비어 오는 행이 있다) |
-| `bsopAdtnlFcltCd` | `facility_code` | 휴게소 `A…` / 주유소 `B…` 코드 |
-| `svarAddr` | `address` | 주소 |
+| `bsopAdtnlFcltCd` | `service_area_code` | 다른 API의 `serviceAreaCode`와 같은 휴게소 `A…` / 주유소 `B…` 코드. 졸음쉼터 등 57행(2026-11-27)은 `svarCd`를 되풀이한다 |
+| `svarAddr` / `pstnoCd` | `address` / `postal_code` | 주소 / 우편번호 |
 | `rprsTelNo` | `phone_number` | 대표 전화 |
-| `hdqrNm` / `mtnofNm` | `headquarters_name` / `branch_name` | 본부 / 지사 |
+| `hdqrCd`·`hdqrNm` / `mtnofCd`·`mtnofNm` | `head_office_code`·`head_office_name` / `branch_office_code`·`branch_office_name` | 본부 / 지사 |
+
+필터 인자는 `std_rest_code`(`svarCd`)·`route_code`(`routeCd`)다.
 
 ---
 
@@ -616,6 +618,7 @@ apiId 0124. 휴게소 경위도와 표준 코드. 휴게소만 있다(2026-11-27
 - **포털**: `data.ex.co.kr`
 - **경로**: `/openapi/locationinfo/locationinfoRest`
 - **메서드**: `client.restarea.locations()` → `Page[RestAreaLocation]`
+- **페이지**: 서버가 `numOfRows`를 99로 자른다. 99를 넘기면 `KrexInvalidParameterError`다.
 
 | 원본 | 모델 필드 | 설명 |
 |------|-----------|------|

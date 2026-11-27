@@ -5,7 +5,15 @@ from pathlib import Path
 
 import pytest
 
-from krex import CarType, FlowDirection, KrexClient, RoadOperator, TCSType, TimeUnit
+from krex import (
+    CarType,
+    FlowDirection,
+    KrexClient,
+    RoadOperator,
+    ServiceAreaClass,
+    TCSType,
+    TimeUnit,
+)
 
 
 def _load_local_env() -> None:
@@ -134,3 +142,35 @@ async def test_live_restarea_convenience_facilities_keeps_raw_payload() -> None:
         assert page.total_count is not None
         assert page.items
         assert "serviceAreaCode" in page.items[0]
+
+
+@pytest.mark.live
+async def test_live_restarea_food_menus_accepts_real_payload_shape() -> None:
+    async with _live_client() as client:
+        page = await client.restarea.food_menus(num_of_rows=3, page_no=1)
+
+        assert page.total_count is not None and page.total_count > 0
+        assert len(page.items) == 3  # 파싱 실패로 빠진 행이 없다
+        first = page.items[0]
+        assert len(first.std_rest_code) == 6 and first.food_name
+        assert first.season is not None
+
+
+@pytest.mark.live
+async def test_live_restarea_service_area_codes_returns_everything_at_once() -> None:
+    async with _live_client() as client:
+        page = await client.restarea.service_area_codes()
+
+        assert page.total_count is not None and len(page.items) == page.total_count
+        classes = {item.facility_class for item in page.items}
+        assert classes >= {ServiceAreaClass.REST_AREA, ServiceAreaClass.GAS_STATION}
+        assert all(item.direction is not None for item in page.items)
+
+
+@pytest.mark.live
+async def test_live_restarea_locations_accepts_real_payload_shape() -> None:
+    async with _live_client() as client:
+        page = await client.restarea.locations(num_of_rows=2, page_no=1)
+
+        assert len(page.items) == 2
+        assert page.items[0].std_rest_code and page.items[0].lat is not None
