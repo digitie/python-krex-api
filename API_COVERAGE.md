@@ -39,7 +39,9 @@
 | `restarea.weather()` / `latest_weather()` | `data.ex.co.kr` | `Page[RestAreaWeather]` | Yes | No | `pykma` expressway weather support에서 port함. |
 | `restarea.fuel_prices()` | `data.ex.co.kr` | `Page[RestAreaFuelPrice]` | Yes | Yes | 실제 price에는 `원` suffix가 포함될 수 있다. |
 | `restarea.convenience_facilities()` | `data.ex.co.kr` | `Page[dict]` | Yes | Yes | Schema promotion 전까지 raw로 유지한다. |
-| `restarea.food_price()` | `data.ex.co.kr` | `Page[FoodPrice]` | Yes | No | 과거 live probe에서 404. |
+| `restarea.food_menus()` | `data.ex.co.kr` | `Page[RestAreaFoodMenu]` | Yes | Yes | 0502 `restBestfoodList`. 2026-11-27 실응답 7,291행 확인. 옛 `food_price()`(`restMenuList`, 404)는 제거. |
+| `restarea.service_area_codes()` | `data.ex.co.kr` | `Page[RestAreaCode]` | Yes | Yes | 0615 `hiwaySvarInfoList`. 페이지 인자를 무시하고 전체 583행. |
+| `restarea.locations()` | `data.ex.co.kr` | `Page[RestAreaLocation]` | Yes | Yes | 0124 `locationinfoRest`. 휴게소만 203행. 일부 좌표가 크게 어긋난다. |
 | `restarea.parking()` | `data.ex.co.kr` | `Page[dict]` | Yes | No | Unit-tested wrapper. |
 | `restarea.wifi()` | `data.ex.co.kr` | `Page[dict]` | Yes | No | Unit-tested wrapper. |
 | `restarea.restroom()` | `data.ex.co.kr` | `Page[dict]` | Yes | No | Unit-tested wrapper. |
@@ -57,12 +59,12 @@
 
 | Category | Count |
 |---|---:|
-| `endpoints.md`에 문서화된 method | 27 |
-| `KrexClient` namespace에 구현된 method | 28 |
-| Typed public model을 반환하는 method | 11 |
+| `endpoints.md`에 문서화된 method | 29 |
+| `KrexClient` namespace에 구현된 method | 30 |
+| Typed public model을 반환하는 method | 13 |
 | Raw `dict` record를 반환하는 method | 13 |
 | Local reference helper | 3 |
-| Provider live 검증 완료 method | 7 |
+| Provider live 검증 완료 method | 10 |
 
 ## 더 넓은 공식 API backlog
 

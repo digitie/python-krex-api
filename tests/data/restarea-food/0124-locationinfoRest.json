@@ -1,0 +1,34 @@
+{
+  "count": 203,
+  "pageNo": 1,
+  "numOfRows": 99,
+  "pageSize": 3,
+  "message": "인증키가 유효합니다.",
+  "code": "SUCCESS",
+  "list": [
+    {
+      "unitName": "서울만남(부산)휴게소",
+      "pageNo": null,
+      "numOfRows": null,
+      "unitCode": "001",
+      "stdRestCd": "000001",
+      "routeNo": "0010",
+      "routeName": "경부선",
+      "xValue": "127.042514",
+      "yValue": "37.459939",
+      "serviceAreaCode": "A00001"
+    },
+    {
+      "unitName": "죽전(서울)휴게소",
+      "pageNo": null,
+      "numOfRows": null,
+      "unitCode": "002",
+      "stdRestCd": "000003",
+      "routeNo": "0010",
+      "routeName": "경부선",
+      "xValue": "127.104397",
+      "yValue": "37.332583",
+      "serviceAreaCode": "A00002"
+    }
+  ]
+}

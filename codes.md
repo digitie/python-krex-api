@@ -17,6 +17,8 @@
 - [시간 단위 (TimeUnit)](#시간-단위-timeunit)
 - [방향 (Direction)](#방향-direction)
 - [실시간 소통 방향 (FlowDirection)](#실시간-소통-방향-flowdirection)
+- [휴게소 메뉴 계절 (MenuSeason)](#휴게소-메뉴-계절-menuseason)
+- [휴게소·주유소 구분 (ServiceAreaClass)](#휴게소주유소-구분-serviceareaclass)
 - [혼잡도 (CongestionLevel)](#혼잡도-congestionlevel)
 - [할인 유형 (DiscountType)](#할인-유형-discounttype)
 - [노선 코드](#노선-코드)
@@ -129,6 +131,26 @@ CarType.from_label("1종")     # CarType.LIGHT
 `FlowDirection.START="S"`는 기점 방향, `FlowDirection.END="E"`는 종점 방향이다.
 이 코드들을 기존 `Direction.SOUTH/EAST`나 `UP/DOWN`으로 해석하면 안 된다.
 과거 응답의 `dirType`은 기존 `Direction`으로 파싱하는 호환성을 유지한다.
+
+## 휴게소 메뉴 계절 (MenuSeason)
+
+0502 `seasonMenu`. 원천은 `s`·`w`처럼 소문자로도 준다 — 파서가 대문자로 맞춘 뒤 해석한다.
+
+| 원본 | enum | 의미 |
+|------|------|------|
+| `4` | `MenuSeason.ALL_YEAR` | 사계절 |
+| `S` | `MenuSeason.SUMMER` | 여름 |
+| `W` | `MenuSeason.WINTER` | 겨울 |
+
+## 휴게소·주유소 구분 (ServiceAreaClass)
+
+0615 `svarGsstClssCd`. 같은 위치라도 휴게소와 주유소는 별개 레코드다. 0615 `gudClssCd`(상하행)는
+기존 `Direction.UP`(`0`)/`Direction.DOWN`(`1`)으로 해석한다.
+
+| 원본 | enum | 의미 |
+|------|------|------|
+| `0` | `ServiceAreaClass.REST_AREA` | 휴게소(졸음쉼터·주차장·쉼터 포함) |
+| `1` | `ServiceAreaClass.GAS_STATION` | 주유소(충전소·시험용 행 포함) |
 
 ## 혼잡도 (CongestionLevel)
 

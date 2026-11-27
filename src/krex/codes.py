@@ -143,6 +143,29 @@ class FlowDirection(KrexCode):
         return {"S": "기점 방향", "E": "종점 방향"}
 
 
+class MenuSeason(KrexCode):
+    """0502 휴게소 푸드메뉴 `seasonMenu`. 원천은 소문자(`s`·`w`)도 준다 — 파서가 대문자로 맞춘다."""
+
+    ALL_YEAR = "4"
+    SUMMER = "S"
+    WINTER = "W"
+
+    @classmethod
+    def _label_map(cls) -> dict[str, str]:
+        return {"4": "사계절", "S": "여름", "W": "겨울"}
+
+
+class ServiceAreaClass(KrexCode):
+    """0615 휴게소코드정보 `svarGsstClssCd`. 같은 위치라도 휴게소와 주유소는 별개 레코드다."""
+
+    REST_AREA = "0"
+    GAS_STATION = "1"
+
+    @classmethod
+    def _label_map(cls) -> dict[str, str]:
+        return {"0": "휴게소", "1": "주유소"}
+
+
 class CongestionLevel(KrexCode):
     SMOOTH = "1"
     SLOW = "2"

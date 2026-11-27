@@ -29,7 +29,9 @@ from .codes import (
     FlowDirection,
     IOType,
     KrexCode,
+    MenuSeason,
     RoadOperator,
+    ServiceAreaClass,
     TCSType,
     TimeUnit,
     coerce_code,
@@ -44,12 +46,14 @@ from .exceptions import (
 )
 from .models import (
     ApiCatalogItem,
-    FoodPrice,
     Incident,
     Page,
     RawCoordinate,
     RestArea,
+    RestAreaCode,
+    RestAreaFoodMenu,
     RestAreaFuelPrice,
+    RestAreaLocation,
     RestAreaRouteFacility,
     RestAreaWeather,
     Route,
@@ -61,6 +65,10 @@ from .models import (
 
 T = TypeVar("T")
 E = TypeVar("E", bound=KrexCode)
+
+#: 0502·0124는 `numOfRows`를 99로 자른다(2026-11-27 실측). 더 큰 값을 받으면 호출자가
+#: `total_count / n`으로 페이지 수를 셀 때 행을 놓치므로 거부한다.
+EX_MAX_ROWS = 99
 KST = timezone(timedelta(hours=9), "KST")
 _MAX_LATEST_WEATHER_LOOKBACK_HOURS = 240
 
@@ -549,10 +557,73 @@ class RestareaService:
             self._client._http.protect_error(exc)
             raise exc from None
 
-    async def food_price(self, **params: Any) -> Page[FoodPrice]:
+    async def food_menus(
+        self,
+        *,
+        std_rest_code: str | None = None,
+        rest_area_name: str | None = None,
+        route_code: str | None = None,
+        num_of_rows: int = EX_MAX_ROWS,
+        page_no: int = 1,
+    ) -> Page[RestAreaFoodMenu]:
+        """0502 휴게소 푸드메뉴현황.
+
+        서버는 한 페이지 99행까지만 준다 — 99를 넘으면 거부한다.
+        """
+        try:
+            _require_max_rows(num_of_rows)
+            return await self._client._page_ex(
+                "/openapi/restinfo/restBestfoodList",
+                {
+                    "stdRestCd": std_rest_code,
+                    "stdRestNm": rest_area_name,
+                    "routeCd": route_code,
+                    "numOfRows": num_of_rows,
+                    "pageNo": page_no,
+                },
+                _rest_area_food_menu,
+            )
+        except KrexError as exc:
+            self._client._http.protect_error(exc)
+            raise exc from None
+
+    async def service_area_codes(
+        self,
+        *,
+        std_rest_code: str | None = None,
+        route_code: str | None = None,
+    ) -> Page[RestAreaCode]:
+        """0615 휴게소코드정보(하이쉼마루).
+
+        서버가 페이지 인자를 무시하고 전체(약 583행)를 한 번에 준다.
+        """
         try:
             return await self._client._page_ex(
-                "/openapi/restinfo/restMenuList", params, _food_price
+                "/openapi/restinfo/hiwaySvarInfoList",
+                {"svarCd": std_rest_code, "routeCd": route_code},
+                _rest_area_code,
+            )
+        except KrexError as exc:
+            self._client._http.protect_error(exc)
+            raise exc from None
+
+    async def locations(
+        self,
+        *,
+        route_no: str | None = None,
+        num_of_rows: int = EX_MAX_ROWS,
+        page_no: int = 1,
+    ) -> Page[RestAreaLocation]:
+        """0124 휴게소 기준정보(경위도). 휴게소만 있다.
+
+        서버 한 페이지 상한이 99행이라 넘으면 거부한다.
+        """
+        try:
+            _require_max_rows(num_of_rows)
+            return await self._client._page_ex(
+                "/openapi/locationinfo/locationinfoRest",
+                {"routeNo": route_no, "numOfRows": num_of_rows, "pageNo": page_no},
+                _rest_area_location,
             )
         except KrexError as exc:
             self._client._http.protect_error(exc)
@@ -1034,18 +1105,70 @@ def parse_rest_area_weather(row: dict[str, Any]) -> RestAreaWeather:
     )
 
 
-def _food_price(row: dict[str, Any]) -> FoodPrice:
-    return FoodPrice(
-        service_area_code=strip_or_none(_get(row, "serviceAreaCode")),
-        service_area_name=strip_or_none(_get(row, "serviceAreaName")),
-        store_code=strip_or_none(_get(row, "storeCode")),
-        store_name=strip_or_none(_get(row, "storeName")),
-        food_code=strip_or_none(_get(row, "foodCode")),
-        food_name=str(_required(row, "foodName")),
-        price=to_int_or_none(_get(row, "price")),
-        is_recommended=to_bool_yn(_get(row, "recommendYn")),
+def _rest_area_food_menu(row: dict[str, Any]) -> RestAreaFoodMenu:
+    return RestAreaFoodMenu(
+        std_rest_code=str(_required(row, "stdRestCd")).strip(),
+        rest_area_name=strip_or_none(_get(row, "stdRestNm")),
+        rest_code=strip_or_none(_get(row, "restCd")),
+        seq=str(_required(row, "seq")).strip(),
+        food_name=str(_required(row, "foodNm")).strip(),
+        price=to_int_or_none(_get(row, "foodCost")),
+        description=strip_or_none(_get(row, "etc")),
+        ingredients=strip_or_none(_get(row, "foodMaterial")),
+        is_recommended=to_bool_yn(_get(row, "recommendyn")),
+        is_best=to_bool_yn(_get(row, "bestfoodyn")),
+        is_premium=to_bool_yn(_get(row, "premiumyn")),
+        season=_enum_or_none(MenuSeason, _upper_or_none(_get(row, "seasonMenu"))),
+        app_listed=to_bool_yn(_get(row, "app")),
+        route_code=strip_or_none(_get(row, "routeCd")),
+        route_name=strip_or_none(_get(row, "routeNm")),
+        address=strip_or_none(_get(row, "svarAddr")),
+        menu_updated_on=to_date_or_none(_get(row, "lastDtime")),
+        source_updated_on=to_date_or_none(_get(row, "lsttmAltrDttm")),
         raw=row,
     )
+
+
+def _rest_area_code(row: dict[str, Any]) -> RestAreaCode:
+    return RestAreaCode(
+        std_rest_code=str(_required(row, "svarCd")).strip(),
+        name=str(_required(row, "svarNm")).strip(),
+        facility_class=_enum_or_none(ServiceAreaClass, _get(row, "svarGsstClssCd")),
+        direction=_enum_or_none(Direction, _get(row, "gudClssCd")),
+        route_code=strip_or_none(_get(row, "routeCd")),
+        route_name=strip_or_none(_get(row, "routeNm")),
+        service_area_code=strip_or_none(_get(row, "bsopAdtnlFcltCd")),
+        address=strip_or_none(_get(row, "svarAddr")),
+        postal_code=strip_or_none(_get(row, "pstnoCd")),
+        phone_number=strip_or_none(_get(row, "rprsTelNo")),
+        head_office_code=strip_or_none(_get(row, "hdqrCd")),
+        head_office_name=strip_or_none(_get(row, "hdqrNm")),
+        branch_office_code=strip_or_none(_get(row, "mtnofCd")),
+        branch_office_name=strip_or_none(_get(row, "mtnofNm")),
+        raw=row,
+    )
+
+
+def _rest_area_location(row: dict[str, Any]) -> RestAreaLocation:
+    lon, lat = _wgs84_from_lon_lat(
+        to_float_or_none(_get(row, "xValue")), to_float_or_none(_get(row, "yValue"))
+    )
+    return RestAreaLocation(
+        unit_code=str(_required(row, "unitCode")).strip(),
+        unit_name=str(_required(row, "unitName")).strip(),
+        std_rest_code=strip_or_none(_get(row, "stdRestCd")),
+        service_area_code=strip_or_none(_get(row, "serviceAreaCode")),
+        route_no=strip_or_none(_get(row, "routeNo")),
+        route_name=strip_or_none(_get(row, "routeName")),
+        lat=lat,
+        lon=lon,
+        raw=row,
+    )
+
+
+def _require_max_rows(num_of_rows: int) -> None:
+    if not 1 <= num_of_rows <= EX_MAX_ROWS:
+        raise KrexInvalidParameterError(f"num_of_rows must be between 1 and {EX_MAX_ROWS}")
 
 
 def _clean(params: dict[str, Any]) -> dict[str, Any]:
@@ -1103,6 +1226,11 @@ def _optional_code(enum_type: type[E], value: E | str | None, field: str) -> str
     if value is None:
         return None
     return coerce_code(enum_type, value, field)
+
+
+def _upper_or_none(value: Any) -> str | None:
+    text = strip_or_none(value)
+    return text.upper() if text is not None else None
 
 
 def _enum_or_none(enum_type: type[E], value: Any) -> E | None:

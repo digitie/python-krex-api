@@ -202,7 +202,9 @@ client = KrexClient(
 | 휴게소 | `restarea.weather()`, `latest_weather()` | `data.ex.co.kr` | `Page[RestAreaWeather]` |
 | 휴게소 | `restarea.fuel_prices()` | `data.ex.co.kr` | `Page[RestAreaFuelPrice]` |
 | 휴게소 | `restarea.convenience_facilities()` | `data.ex.co.kr` | `Page[dict]` |
-| 휴게소 | `restarea.food_price()` | `data.ex.co.kr` | `Page[FoodPrice]` |
+| 휴게소 | `restarea.food_menus()` | `data.ex.co.kr` | `Page[RestAreaFoodMenu]` |
+| 휴게소 | `restarea.service_area_codes()` | `data.ex.co.kr` | `Page[RestAreaCode]` |
+| 휴게소 | `restarea.locations()` | `data.ex.co.kr` | `Page[RestAreaLocation]` |
 | 휴게소 | `restarea.parking()`, `wifi()`, `restroom()` | `data.ex.co.kr` | `Page[dict]` |
 | 휴게소 | `restarea.disabled_facility()`, `bus_transit()` | `data.ex.co.kr` | `Page[dict]` |
 | 시설 | `facility.tollgate_info()` | `data.go.kr` | `Page[dict]` |
