@@ -662,28 +662,6 @@ async def test_restarea_convenience_facilities_stays_raw_until_schema_is_verifie
     assert page.items[0] == {"serviceAreaCode": "A0001", "unknownFacility": "Y"}
 
 
-async def test_food_price_parses_recommend_flag() -> None:
-    session = FakeSession(
-        ex_payload(
-            {
-                "serviceAreaCode": "A001",
-                "serviceAreaName": "죽전",
-                "storeName": "푸드코트",
-                "foodName": "우동",
-                "price": "7,000",
-                "recommendYn": "Y",
-            }
-        )
-    )
-    client = KrexClient(ex_api_key="ex-key", retry_backoff=0, session=session)
-
-    food = (await client.restarea.food_price()).items[0]
-
-    assert food.food_name == "우동"
-    assert food.price == 7000
-    assert food.is_recommended is True
-
-
 async def test_no_data_can_return_empty_page_when_configured() -> None:
     session = FakeSession({"code": "NO_DATA", "message": "empty"})
     client = KrexClient(ex_api_key="ex-key", retry_backoff=0, strict_no_data=False, session=session)

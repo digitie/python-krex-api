@@ -1,5 +1,17 @@
 # 변경 기록
 
+## 2026-11-27 — 휴게소 푸드메뉴·코드·기준정보
+
+- **깨는 변경**: `restarea.food_price()`와 `FoodPrice`를 지웠다. 경로 `/openapi/restinfo/restMenuList`는
+  404라 쓸 수 있는 소비자가 없었다.
+- `restarea.food_menus()` → `Page[RestAreaFoodMenu]`: 0502 `/openapi/restinfo/restBestfoodList`.
+  메뉴명·가격·대표(`is_best`)/추천/프리미엄·계절(`MenuSeason`)·메뉴 수정일. 한 페이지 99행 상한.
+- `restarea.service_area_codes()` → `Page[RestAreaCode]`: 0615 `/openapi/restinfo/hiwaySvarInfoList`.
+  표준 코드·노선·상하행(`Direction`)·휴게소/주유소(`ServiceAreaClass`). 서버가 페이지 인자를 무시하고 전체를 준다.
+- `restarea.locations()` → `Page[RestAreaLocation]`: 0124 `/openapi/locationinfo/locationinfoRest`.
+- 세 응답 모두 2026-11-27 실응답 표본(`tests/data/restarea-food/`)으로 오프라인 검증한다. 선택 값(가격·코드·Y/N·날짜)을
+  읽지 못해도 행은 버리지 않고 None으로 둔다 — 전체 행 수를 `count`와 대조하는 소비자가 한 행 때문에 실패하지 않게 한다.
+
 ## 2026-11-24 — 실시간 소통 부분 파싱의 유효 행 제공
 
 - 0405 `traffic.flow_all()`/`flow()`의 일부 행 파싱 실패는 계속 `KrexParseError`

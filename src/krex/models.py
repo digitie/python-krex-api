@@ -16,6 +16,8 @@ from .codes import (
     DiscountType,
     FlowDirection,
     IOType,
+    MenuSeason,
+    ServiceAreaClass,
     TCSType,
 )
 
@@ -252,15 +254,64 @@ class RestAreaWeather(KrexModel):
         return self.lat
 
 
-class FoodPrice(KrexModel):
-    service_area_code: str | None
-    service_area_name: str | None
-    store_code: str | None
-    store_name: str | None
-    food_code: str | None
+class RestAreaFoodMenu(KrexModel):
+    """0502 휴게소 푸드메뉴현황 한 행(`/openapi/restinfo/restBestfoodList`).
+
+    `std_rest_code`(`stdRestCd`)는 0615 `svarCd`·0124 `stdRestCd`와 같은 휴게소 표준 코드다.
+    """
+
+    std_rest_code: str
+    rest_area_name: str | None
+    rest_code: str | None
+    seq: str
     food_name: str
     price: int | None
+    description: str | None
+    ingredients: str | None
     is_recommended: bool | None
+    is_best: bool | None
+    is_premium: bool | None
+    season: MenuSeason | None
+    app_listed: bool | None
+    route_code: str | None
+    route_name: str | None
+    address: str | None
+    menu_updated_on: date | None
+    source_updated_on: date | None
+    raw: dict[str, Any]
+
+
+class RestAreaCode(KrexModel):
+    """0615 휴게소코드정보(하이쉼마루) 한 행(`/openapi/restinfo/hiwaySvarInfoList`).
+
+    좌표는 없다. 상하행·휴게소/주유소는 각각 별개 레코드다.
+    """
+
+    service_area_code: str
+    name: str
+    facility_class: ServiceAreaClass | None
+    direction: Direction | None
+    route_code: str | None
+    route_name: str | None
+    facility_code: str | None
+    address: str | None
+    phone_number: str | None
+    headquarters_name: str | None
+    branch_name: str | None
+    raw: dict[str, Any]
+
+
+class RestAreaLocation(KrexModel):
+    """0124 휴게소 기준정보 한 행(`/openapi/locationinfo/locationinfoRest`). 휴게소만 있다."""
+
+    unit_code: str
+    unit_name: str
+    std_rest_code: str | None
+    service_area_code: str | None
+    route_no: str | None
+    route_name: str | None
+    lat: float | None
+    lon: float | None
     raw: dict[str, Any]
 
 

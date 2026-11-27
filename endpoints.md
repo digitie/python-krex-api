@@ -36,7 +36,9 @@
   - [휴게소별 날씨 (`restarea.weather`)](#휴게소별-날씨)
   - [주유소별 가격·업체 현황 (`restarea.fuel_prices`)](#주유소별-가격업체-현황)
   - [노선별·방향별 휴게소 편의시설 현황 (`restarea.convenience_facilities`)](#노선별방향별-휴게소-편의시설-현황)
-  - [휴게소 음식가격 (`restarea.food_price`)](#휴게소-음식가격)
+  - [휴게소 푸드메뉴현황 (`restarea.food_menus`)](#휴게소-푸드메뉴현황)
+  - [휴게소코드정보 하이쉼마루 (`restarea.service_area_codes`)](#휴게소코드정보-하이쉼마루)
+  - [휴게소 기준정보 (`restarea.locations`)](#휴게소-기준정보)
   - [주차장/Wi-Fi/화장실 시설 정보](#휴게소-시설-정보)
 - [영업소·시설 (Facility)](#영업소시설-facility)
   - [영업소 위치정보 (`facility.tollgate_info`)](#영업소-위치정보)
@@ -540,24 +542,90 @@ VDS별 통행속도와 콘존 정보(apiId `0405`). 같은 콘존에 여러 VDS 
 
 ---
 
-### 휴게소 음식가격
+### 휴게소 푸드메뉴현황
 
-EX-FOOD 가격 정보. 휴게소·매장·메뉴별 가격.
+apiId 0502. 휴게소별 메뉴명·가격·대표/추천/프리미엄·계절 메뉴. 2026-11-27 실응답 7,291행.
+예전 `restarea.food_price()`(`/openapi/restinfo/restMenuList`)는 404였고 제거했다.
 
 - **포털**: `data.ex.co.kr`
-- **경로**: `/openapi/restinfo/restMenuList` (대표 명칭, 실 경로는 포털에서 확인)
-- **메서드**: `client.restarea.food_price()`
+- **경로**: `/openapi/restinfo/restBestfoodList`
+- **메서드**: `client.restarea.food_menus()` → `Page[RestAreaFoodMenu]`
+- **페이지**: 서버가 `numOfRows`를 99로 자른다. 기본값도 99다.
+
+**파라미터**
+
+| 이름 | 필수 | 타입 | 설명 |
+|------|------|------|------|
+| `stdRestCd` | X | `str` | 휴게소 표준 코드(6자리, 앞 0 보존) |
+| `stdRestNm` | X | `str` | 휴게소명(부분 일치) |
+| `routeCd` | X | `str` | 노선 코드 |
 
 **응답 필드**
 
-| 필드 | 설명 |
-|------|------|
-| `serviceAreaCode` | 휴게소 코드 |
-| `serviceAreaName` | 휴게소명 |
-| `storeCode` / `storeName` | 매장 |
-| `foodCode` / `foodName` | 음식명 |
-| `price` | 가격 (원) |
-| `recommendYn` | 대표 메뉴 여부 |
+| 원본 | 모델 필드 | 타입 | 설명 |
+|------|-----------|------|------|
+| `stdRestCd` | `std_rest_code` | `str` | 휴게소 표준 코드. 0615 `svarCd`·0124 `stdRestCd`와 같다 |
+| `stdRestNm` | `rest_area_name` | `str \| None` | 휴게소명 (예: `서울만남(부산)휴게소`) |
+| `restCd` | `rest_code` | `str \| None` | 매장 코드 |
+| `seq` | `seq` | `str` | 메뉴 순번(휴게소 안에서 고유) |
+| `foodNm` | `food_name` | `str` | 메뉴명 |
+| `foodCost` | `price` | `int \| None` | 가격(원). 읽을 수 없으면 None |
+| `etc` | `description` | `str \| None` | 설명 |
+| `foodMaterial` | `ingredients` | `str \| None` | 재료 |
+| `recommendyn` | `is_recommended` | `bool \| None` | 추천 |
+| `bestfoodyn` | `is_best` | `bool \| None` | 대표(베스트푸드) |
+| `premiumyn` | `is_premium` | `bool \| None` | 프리미엄 |
+| `seasonMenu` | `season` | `MenuSeason \| None` | `4` 사계절 / `S` 여름 / `W` 겨울. 원천의 소문자도 받는다 |
+| `app` | `app_listed` | `bool \| None` | 앱 노출 여부로 보이나 공식 정의는 미확인 |
+| `routeCd` / `routeNm` | `route_code` / `route_name` | `str \| None` | 노선 |
+| `svarAddr` | `address` | `str \| None` | 주소 |
+| `lastDtime` | `menu_updated_on` | `date \| None` | 메뉴 수정일 |
+| `lsttmAltrDttm` | `source_updated_on` | `date \| None` | 원천 동기화일(조회 당일로 온다) |
+
+모르는 코드값·Y/N이 아닌 값·읽을 수 없는 가격과 날짜는 None으로 두고 행은 살린다. 원문은 `raw`에 남는다.
+
+---
+
+### 휴게소코드정보 하이쉼마루
+
+apiId 0615. 휴게소·주유소 표준 코드, 노선, 상하행. 좌표는 없다.
+
+- **포털**: `data.ex.co.kr`
+- **경로**: `/openapi/restinfo/hiwaySvarInfoList`
+- **메서드**: `client.restarea.service_area_codes()` → `Page[RestAreaCode]`
+- **페이지**: 서버가 `numOfRows`/`pageNo`를 무시하고 전체(2026-11-27 583행)를 한 번에 준다.
+
+| 원본 | 모델 필드 | 설명 |
+|------|-----------|------|
+| `svarCd` | `service_area_code` | 표준 코드(6자리). 0502 `stdRestCd`와 같다 |
+| `svarNm` | `name` | 이름 (예: `김제(새만금)휴게소`, `김제(새만금)주유소`) |
+| `svarGsstClssCd` | `facility_class` | `ServiceAreaClass`: `0` 휴게소 / `1` 주유소 |
+| `gudClssCd` | `direction` | `Direction`: `0` 상행 / `1` 하행 |
+| `routeCd` / `routeNm` | `route_code` / `route_name` | 노선 (`routeNm`은 비어 오는 행이 있다) |
+| `bsopAdtnlFcltCd` | `facility_code` | 휴게소 `A…` / 주유소 `B…` 코드 |
+| `svarAddr` | `address` | 주소 |
+| `rprsTelNo` | `phone_number` | 대표 전화 |
+| `hdqrNm` / `mtnofNm` | `headquarters_name` / `branch_name` | 본부 / 지사 |
+
+---
+
+### 휴게소 기준정보
+
+apiId 0124. 휴게소 경위도와 표준 코드. 휴게소만 있다(2026-11-27 203행).
+
+- **포털**: `data.ex.co.kr`
+- **경로**: `/openapi/locationinfo/locationinfoRest`
+- **메서드**: `client.restarea.locations()` → `Page[RestAreaLocation]`
+
+| 원본 | 모델 필드 | 설명 |
+|------|-----------|------|
+| `unitCode` / `unitName` | `unit_code` / `unit_name` | 휴게소 단위 코드 / 이름 |
+| `stdRestCd` | `std_rest_code` | 표준 코드 |
+| `serviceAreaCode` | `service_area_code` | `A…` 코드 |
+| `routeNo` / `routeName` | `route_no` / `route_name` | 노선 |
+| `xValue` / `yValue` | `lon` / `lat` | 경위도. 한반도 범위 밖이면 None |
+
+같은 이름 휴게소의 좌표가 수십 km 어긋난 행이 있다(2026-11-27 `홍천(양양)휴게소`). 좌표만으로 다른 원천과 맞추지 않는다.
 
 ---
 
